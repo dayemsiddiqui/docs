@@ -1,6 +1,6 @@
-# Mintlify Starter Kit
+# Kit - Laravel Inspired Framework For Rust
 
-Use the starter kit to get your docs deployed and ready to customize.
+Kit aims to bring the DX of Laravel and combine it with the robustness, performance and type-safety of Rust. Kit allows you to write type-safe and performant web apps with the DX and velocity of Laravel.
 
 Click the green **Use this template** button at the top of this repo to copy the Mintlify starter kit. The starter kit contains examples with
 
@@ -10,7 +10,7 @@ Click the green **Use this template** button at the top of this repo to copy the
 - API reference pages
 - Use of popular components
 
-**[Follow the full quickstart guide](https://starter.mintlify.com/quickstart)**
+[**Follow the full quickstart guide**](https://starter.mintlify.com/quickstart)
 
 ## Development
 
@@ -40,4 +40,5 @@ Install our GitHub app from your [dashboard](https://dashboard.mintlify.com/sett
 - If a page loads as a 404: Make sure you are running in a folder with a valid `docs.json`.
 
 ### Resources
+
 - [Mintlify documentation](https://mintlify.com/docs)
