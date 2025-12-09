@@ -1,0 +1,532 @@
+---
+title: 'Build a Todo App with Inertia'
+description: 'Create a full-stack CRUD app with React and Inertia.js'
+icon: 'layer-group'
+---
+
+In this tutorial, you'll build a complete todo application with a React frontend using Inertia.js. You'll learn how to connect your Rust backend to a modern React UI.
+
+## What We're Building
+
+A full-featured todo app with:
+- List todos with filtering
+- Create new todos
+- Mark todos as complete
+- Edit and delete todos
+- All without writing a single API endpoint
+
+## Prerequisites
+
+```bash
+kit new todo-app
+cd todo-app
+```
+
+This creates a project with React and Inertia pre-configured.
+
+## Step 1: Create the Migration
+
+```bash
+kit make:migration create_todos_table
+```
+
+Edit the migration:
+
+```rust
+use sea_orm_migration::prelude::*;
+
+#[derive(DeriveMigrationName)]
+pub struct Migration;
+
+#[async_trait::async_trait]
+impl MigrationTrait for Migration {
+    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .create_table(
+                Table::create()
+                    .table(Todos::Table)
+                    .if_not_exists()
+                    .col(
+                        ColumnDef::new(Todos::Id)
+                            .integer()
+                            .not_null()
+                            .auto_increment()
+                            .primary_key(),
+                    )
+                    .col(ColumnDef::new(Todos::Title).string().not_null())
+                    .col(
+                        ColumnDef::new(Todos::Completed)
+                            .boolean()
+                            .not_null()
+                            .default(false),
+                    )
+                    .col(ColumnDef::new(Todos::CreatedAt).timestamp().not_null())
+                    .to_owned(),
+            )
+            .await
+    }
+
+    async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .drop_table(Table::drop().table(Todos::Table).to_owned())
+            .await
+    }
+}
+
+#[derive(DeriveIden)]
+enum Todos {
+    Table,
+    Id,
+    Title,
+    Completed,
+    CreatedAt,
+}
+```
+
+Run migrations:
+
+```bash
+kit migrate
+kit db:sync
+```
+
+## Step 2: Create the Controller
+
+```bash
+kit make:controller todos
+```
+
+Edit `src/controllers/todos.rs`:
+
+```rust
+use kit::{inertia_response, Request, Response, InertiaProps, redirect};
+use kit::database::{Model, ModelMut};
+use crate::models::todos::{Entity as Todos, ActiveModel, Model as Todo};
+use sea_orm::ActiveValue::Set;
+use serde::{Deserialize, Serialize};
+
+// Props for the index page
+#[derive(InertiaProps)]
+pub struct TodoIndexProps {
+    pub todos: Vec<Todo>,
+    pub filter: String,
+}
+
+// Props for the create/edit page
+#[derive(InertiaProps)]
+pub struct TodoFormProps {
+    pub todo: Option<Todo>,
+}
+
+#[derive(Deserialize)]
+pub struct TodoRequest {
+    pub title: String,
+}
+
+// GET /todos
+pub async fn index(req: Request) -> Response {
+    let filter = req.query("filter").unwrap_or("all".to_string());
+
+    let todos = match filter.as_str() {
+        "completed" => {
+            use sea_orm::{EntityTrait, QueryFilter, ColumnTrait};
+            use crate::models::todos::Column;
+            Todos::find()
+                .filter(Column::Completed.eq(true))
+                .all(kit::database::DB::connection())
+                .await
+                .unwrap_or_default()
+        }
+        "pending" => {
+            use sea_orm::{EntityTrait, QueryFilter, ColumnTrait};
+            use crate::models::todos::Column;
+            Todos::find()
+                .filter(Column::Completed.eq(false))
+                .all(kit::database::DB::connection())
+                .await
+                .unwrap_or_default()
+        }
+        _ => Todos::all().await.unwrap_or_default(),
+    };
+
+    inertia_response!("Todos/Index", TodoIndexProps { todos, filter })
+}
+
+// GET /todos/create
+pub async fn create(_req: Request) -> Response {
+    inertia_response!("Todos/Create", TodoFormProps { todo: None })
+}
+
+// POST /todos
+pub async fn store(req: Request) -> Response {
+    let body: TodoRequest = req.json().await.unwrap();
+
+    let new_todo = ActiveModel {
+        title: Set(body.title),
+        completed: Set(false),
+        created_at: Set(chrono::Utc::now().naive_utc()),
+        ..Default::default()
+    };
+
+    let _ = Todos::insert_one(new_todo).await;
+
+    redirect("/todos")
+}
+
+// GET /todos/:id/edit
+pub async fn edit(req: Request) -> Response {
+    let id: i32 = req.param("id").unwrap().parse().unwrap();
+
+    match Todos::find_by_pk(id).await {
+        Ok(Some(todo)) => {
+            inertia_response!("Todos/Edit", TodoFormProps { todo: Some(todo) })
+        }
+        _ => redirect("/todos"),
+    }
+}
+
+// PUT /todos/:id
+pub async fn update(req: Request) -> Response {
+    let id: i32 = req.param("id").unwrap().parse().unwrap();
+    let body: TodoRequest = req.json().await.unwrap();
+
+    if let Ok(Some(existing)) = Todos::find_by_pk(id).await {
+        let mut active: ActiveModel = existing.into();
+        active.title = Set(body.title);
+        let _ = Todos::update_one(active).await;
+    }
+
+    redirect("/todos")
+}
+
+// POST /todos/:id/toggle
+pub async fn toggle(req: Request) -> Response {
+    let id: i32 = req.param("id").unwrap().parse().unwrap();
+
+    if let Ok(Some(existing)) = Todos::find_by_pk(id).await {
+        let mut active: ActiveModel = existing.clone().into();
+        active.completed = Set(!existing.completed);
+        let _ = Todos::update_one(active).await;
+    }
+
+    redirect("/todos")
+}
+
+// DELETE /todos/:id
+pub async fn destroy(req: Request) -> Response {
+    let id: i32 = req.param("id").unwrap().parse().unwrap();
+    let _ = Todos::delete_by_pk(id).await;
+    redirect("/todos")
+}
+```
+
+## Step 3: Define Routes
+
+Edit `src/routes.rs`:
+
+```rust
+use kit::routes;
+use crate::controllers::todos;
+
+pub fn routes() -> Vec<kit::Route> {
+    routes![
+        get "/todos" => todos::index,
+        get "/todos/create" => todos::create,
+        post "/todos" => todos::store,
+        get "/todos/{id}/edit" => todos::edit,
+        put "/todos/{id}" => todos::update,
+        post "/todos/{id}/toggle" => todos::toggle,
+        delete "/todos/{id}" => todos::destroy,
+    ]
+}
+```
+
+## Step 4: Generate TypeScript Types
+
+```bash
+kit generate-types
+```
+
+This creates `frontend/src/types/inertia-props.ts` with:
+
+```typescript
+export interface Todo {
+  id: number
+  title: string
+  completed: boolean
+  created_at: string
+}
+
+export interface TodoIndexProps {
+  todos: Todo[]
+  filter: string
+}
+
+export interface TodoFormProps {
+  todo: Todo | null
+}
+```
+
+## Step 5: Create React Components
+
+### Index Page
+
+Create `frontend/src/pages/Todos/Index.tsx`:
+
+```tsx
+import { Link, router } from '@inertiajs/react'
+import type { TodoIndexProps } from '../../types/inertia-props'
+
+export default function TodoIndex({ todos, filter }: TodoIndexProps) {
+  const toggleTodo = (id: number) => {
+    router.post(`/todos/${id}/toggle`)
+  }
+
+  const deleteTodo = (id: number) => {
+    if (confirm('Are you sure?')) {
+      router.delete(`/todos/${id}`)
+    }
+  }
+
+  return (
+    <div className="max-w-2xl mx-auto p-8">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold">My Todos</h1>
+        <Link
+          href="/todos/create"
+          className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+        >
+          Add Todo
+        </Link>
+      </div>
+
+      {/* Filters */}
+      <div className="flex gap-2 mb-6">
+        <Link
+          href="/todos"
+          className={`px-3 py-1 rounded ${
+            filter === 'all' ? 'bg-blue-500 text-white' : 'bg-gray-200'
+          }`}
+        >
+          All
+        </Link>
+        <Link
+          href="/todos?filter=pending"
+          className={`px-3 py-1 rounded ${
+            filter === 'pending' ? 'bg-blue-500 text-white' : 'bg-gray-200'
+          }`}
+        >
+          Pending
+        </Link>
+        <Link
+          href="/todos?filter=completed"
+          className={`px-3 py-1 rounded ${
+            filter === 'completed' ? 'bg-blue-500 text-white' : 'bg-gray-200'
+          }`}
+        >
+          Completed
+        </Link>
+      </div>
+
+      {/* Todo List */}
+      {todos.length === 0 ? (
+        <p className="text-gray-500 text-center py-8">No todos yet!</p>
+      ) : (
+        <ul className="space-y-3">
+          {todos.map((todo) => (
+            <li
+              key={todo.id}
+              className="flex items-center gap-3 p-4 bg-white rounded-lg shadow"
+            >
+              <input
+                type="checkbox"
+                checked={todo.completed}
+                onChange={() => toggleTodo(todo.id)}
+                className="w-5 h-5"
+              />
+              <span
+                className={`flex-1 ${
+                  todo.completed ? 'line-through text-gray-400' : ''
+                }`}
+              >
+                {todo.title}
+              </span>
+              <Link
+                href={`/todos/${todo.id}/edit`}
+                className="text-blue-500 hover:underline"
+              >
+                Edit
+              </Link>
+              <button
+                onClick={() => deleteTodo(todo.id)}
+                className="text-red-500 hover:underline"
+              >
+                Delete
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+```
+
+### Create Page
+
+Create `frontend/src/pages/Todos/Create.tsx`:
+
+```tsx
+import { Link, useForm } from '@inertiajs/react'
+
+export default function TodoCreate() {
+  const { data, setData, post, processing, errors } = useForm({
+    title: '',
+  })
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    post('/todos')
+  }
+
+  return (
+    <div className="max-w-md mx-auto p-8">
+      <h1 className="text-2xl font-bold mb-6">Create Todo</h1>
+
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium mb-1">Title</label>
+          <input
+            type="text"
+            value={data.title}
+            onChange={(e) => setData('title', e.target.value)}
+            className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="What needs to be done?"
+            autoFocus
+          />
+          {errors.title && (
+            <p className="text-red-500 text-sm mt-1">{errors.title}</p>
+          )}
+        </div>
+
+        <div className="flex gap-3">
+          <button
+            type="submit"
+            disabled={processing}
+            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:opacity-50"
+          >
+            {processing ? 'Creating...' : 'Create Todo'}
+          </button>
+          <Link href="/todos" className="px-4 py-2 text-gray-600 hover:underline">
+            Cancel
+          </Link>
+        </div>
+      </form>
+    </div>
+  )
+}
+```
+
+### Edit Page
+
+Create `frontend/src/pages/Todos/Edit.tsx`:
+
+```tsx
+import { Link, useForm } from '@inertiajs/react'
+import type { TodoFormProps } from '../../types/inertia-props'
+
+export default function TodoEdit({ todo }: TodoFormProps) {
+  const { data, setData, put, processing, errors } = useForm({
+    title: todo?.title || '',
+  })
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    put(`/todos/${todo?.id}`)
+  }
+
+  if (!todo) {
+    return <div>Todo not found</div>
+  }
+
+  return (
+    <div className="max-w-md mx-auto p-8">
+      <h1 className="text-2xl font-bold mb-6">Edit Todo</h1>
+
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium mb-1">Title</label>
+          <input
+            type="text"
+            value={data.title}
+            onChange={(e) => setData('title', e.target.value)}
+            className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            autoFocus
+          />
+          {errors.title && (
+            <p className="text-red-500 text-sm mt-1">{errors.title}</p>
+          )}
+        </div>
+
+        <div className="flex gap-3">
+          <button
+            type="submit"
+            disabled={processing}
+            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:opacity-50"
+          >
+            {processing ? 'Saving...' : 'Save Changes'}
+          </button>
+          <Link href="/todos" className="px-4 py-2 text-gray-600 hover:underline">
+            Cancel
+          </Link>
+        </div>
+      </form>
+    </div>
+  )
+}
+```
+
+## Step 6: Run the App
+
+Start the development server:
+
+```bash
+kit serve
+```
+
+Visit `http://localhost:8080/todos` to see your todo app in action!
+
+## How It Works
+
+1. **No API Layer**: The Rust backend returns Inertia responses directly to React components
+2. **Type Safety**: TypeScript types are generated from Rust structs
+3. **SPA Navigation**: Page transitions happen without full page reloads
+4. **Forms**: `useForm` hook handles form state, submission, and errors
+5. **Redirects**: After mutations, redirect to update the UI
+
+## Key Inertia Features Used
+
+| Feature | Description |
+|---------|-------------|
+| `inertia_response!` | Return page with props |
+| `redirect()` | Navigate after mutations |
+| `<Link>` | SPA navigation |
+| `useForm` | Form state management |
+| `router.post/delete` | Programmatic mutations |
+
+## Summary
+
+You've built a complete CRUD application:
+
+- Database migrations and models
+- Server-side controllers with Inertia responses
+- React pages with type-safe props
+- Forms with validation feedback
+- Filtering and navigation
+
+## Next Steps
+
+- Add user authentication
+- Implement optimistic updates
+- Add toast notifications
+- Deploy to production
