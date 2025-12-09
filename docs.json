@@ -27,6 +27,7 @@
               "core/routing",
               "core/controllers",
               "core/actions",
+              "core/dependency-injection",
               "core/responses",
               "core/middleware"
             ]
