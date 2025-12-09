@@ -1,0 +1,275 @@
+---
+title: 'Code Generators'
+description: 'Generate controllers, actions, middleware, errors, and more'
+icon: 'wand-magic-sparkles'
+---
+
+Kit provides generator commands to scaffold common application components with proper structure and boilerplate code.
+
+## make:controller
+
+Generate a new controller for handling HTTP requests.
+
+```bash
+kit make:controller <name>
+```
+
+### Examples
+
+```bash
+kit make:controller User
+kit make:controller OrderItem
+kit make:controller api/User
+```
+
+### Generated File
+
+```rust
+// src/controllers/user.rs
+use kit::{json_response, Request, Response};
+
+pub async fn invoke(_req: Request) -> Response {
+    json_response!({
+        "controller": "User"
+    })
+}
+```
+
+### What It Does
+
+1. Creates `src/controllers/<name>.rs`
+2. Updates `src/controllers/mod.rs` to export the controller
+
+---
+
+## make:action
+
+Generate a new action for encapsulating business logic.
+
+```bash
+kit make:action <name>
+```
+
+### Examples
+
+```bash
+kit make:action CreateUser
+kit make:action SendNotification
+kit make:action ProcessPayment
+```
+
+### Generated File
+
+```rust
+// src/actions/create_user.rs
+use kit::injectable;
+
+#[injectable]
+pub struct CreateUserAction {
+    // Dependencies injected via container
+}
+
+impl CreateUserAction {
+    pub fn execute(&self) {
+        // TODO: Implement action logic
+    }
+}
+```
+
+### What It Does
+
+1. Creates `src/actions/<name>.rs`
+2. Updates `src/actions/mod.rs` to export the action
+3. Action is automatically registered in the DI container
+
+---
+
+## make:middleware
+
+Generate a new middleware for request/response processing.
+
+```bash
+kit make:middleware <name>
+```
+
+### Examples
+
+```bash
+kit make:middleware Auth
+kit make:middleware RateLimit
+kit make:middleware Cors
+```
+
+### Generated File
+
+```rust
+// src/middleware/auth.rs
+use kit::middleware::{Middleware, Next};
+use kit::{Request, Response};
+use async_trait::async_trait;
+
+pub struct AuthMiddleware;
+
+#[async_trait]
+impl Middleware for AuthMiddleware {
+    async fn handle(&self, req: Request, next: Next) -> Response {
+        // Before request handling
+
+        let response = next.run(req).await;
+
+        // After request handling
+
+        response
+    }
+}
+```
+
+### What It Does
+
+1. Creates `src/middleware/<name>.rs`
+2. Updates `src/middleware/mod.rs` to export the middleware
+
+---
+
+## make:error
+
+Generate a custom domain error with HTTP response conversion.
+
+```bash
+kit make:error <name>
+```
+
+### Examples
+
+```bash
+kit make:error UserNotFound
+kit make:error PaymentFailed
+kit make:error InsufficientStock
+```
+
+### Generated File
+
+```rust
+// src/errors/user_not_found.rs
+use kit::domain_error;
+
+#[domain_error(status = 500, message = "User not found")]
+pub struct UserNotFound;
+```
+
+### What It Does
+
+1. Creates `src/errors/<name>.rs`
+2. Creates or updates `src/errors/mod.rs`
+3. Generates a domain error with automatic HTTP response conversion
+
+### Usage
+
+```rust
+use crate::errors::user_not_found::UserNotFound;
+
+pub async fn show(req: Request) -> Response {
+    let user = find_user(id).await
+        .ok_or(UserNotFound)?;  // Returns 500 response
+
+    json_response!({ "user": user })
+}
+```
+
+---
+
+## make:inertia
+
+Generate an Inertia.js page component.
+
+```bash
+kit make:inertia <name>
+```
+
+### Examples
+
+```bash
+kit make:inertia About
+kit make:inertia UserProfile
+kit make:inertia Dashboard
+```
+
+### Generated Files
+
+Creates a React component in `frontend/src/pages/`:
+
+```tsx
+// frontend/src/pages/About.tsx
+export default function About() {
+    return (
+        <div>
+            <h1>About</h1>
+        </div>
+    );
+}
+```
+
+---
+
+## generate-types
+
+Generate TypeScript types from Rust `InertiaProps` structs.
+
+```bash
+kit generate-types [options]
+```
+
+### Options
+
+| Option | Description |
+|--------|-------------|
+| `-o, --output <PATH>` | Output file path (default: `frontend/src/types/inertia-props.ts`) |
+| `-w, --watch` | Watch for changes and regenerate |
+
+### Examples
+
+```bash
+# Generate types once
+kit generate-types
+
+# Watch mode
+kit generate-types --watch
+
+# Custom output path
+kit generate-types --output frontend/src/types/props.ts
+```
+
+### How It Works
+
+Scans your Rust code for structs implementing `InertiaProps` and generates TypeScript interfaces:
+
+```rust
+// Rust
+#[derive(InertiaProps)]
+pub struct UserPageProps {
+    pub user: User,
+    pub posts: Vec<Post>,
+}
+```
+
+```typescript
+// Generated TypeScript
+export interface UserPageProps {
+    user: User;
+    posts: Post[];
+}
+```
+
+---
+
+## Summary
+
+| Command | Creates | Location |
+|---------|---------|----------|
+| `make:controller <name>` | Controller | `src/controllers/` |
+| `make:action <name>` | Action | `src/actions/` |
+| `make:middleware <name>` | Middleware | `src/middleware/` |
+| `make:error <name>` | Domain Error | `src/errors/` |
+| `make:inertia <name>` | Page Component | `frontend/src/pages/` |
+| `make:migration <name>` | Migration | `migrations/` |
+| `generate-types` | TypeScript Types | `frontend/src/types/` |

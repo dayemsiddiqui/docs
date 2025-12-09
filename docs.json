@@ -28,6 +28,7 @@
               "core/controllers",
               "core/actions",
               "core/dependency-injection",
+              "core/bootstrap",
               "core/responses",
               "core/error-handling",
               "core/middleware"
@@ -55,6 +56,21 @@
               "ai-tools/cursor",
               "ai-tools/claude-code",
               "ai-tools/windsurf"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "CLI",
+        "groups": [
+          {
+            "group": "CLI Reference",
+            "pages": [
+              "cli/overview",
+              "cli/new",
+              "cli/serve",
+              "cli/generators",
+              "cli/migrations"
             ]
           }
         ]

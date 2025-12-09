@@ -292,6 +292,53 @@ async fn test_with_fake_service() {
 
 The `TestContainerGuard` ensures test isolation by automatically cleaning up when dropped.
 
+## Manual Registration in Bootstrap
+
+While `#[injectable]` provides automatic registration, you may need to manually register services that require runtime configuration (like database connections, external API clients, or services configured from environment variables).
+
+The `bootstrap.rs` file is the central location for manual service registration:
+
+```rust
+// src/bootstrap.rs
+use kit::{bind, global_middleware, singleton, App, DB};
+use crate::middleware;
+
+pub async fn register() {
+    // Initialize database connection
+    DB::init().await.expect("Failed to connect to database");
+
+    // Global middleware (runs on every request in registration order)
+    global_middleware!(middleware::LoggingMiddleware);
+
+    // Register a trait binding with runtime config
+    bind!(dyn CacheStore, RedisCache::new(&redis_url));
+
+    // Register a concrete singleton with config
+    singleton!(EmailService::new(&smtp_config));
+}
+```
+
+The `bootstrap::register()` function is called from `main.rs` before the server starts:
+
+```rust
+// src/main.rs
+#[tokio::main]
+async fn main() {
+    Config::init(std::path::Path::new("."));
+    config::register_all();
+
+    // Register services and global middleware
+    bootstrap::register().await;
+
+    let router = routes::register();
+    Server::from_config(router).run().await.expect("Failed to start server");
+}
+```
+
+<Note>
+For more details on the bootstrap file and when to use manual vs automatic registration, see the [Bootstrap documentation](/core/bootstrap).
+</Note>
+
 ## Auto-Registration
 
 Kit uses the `inventory` crate for compile-time service registration. Services marked with `#[injectable]` are automatically registered when `App::boot_services()` is called (this happens automatically in `Server::from_config()`).
