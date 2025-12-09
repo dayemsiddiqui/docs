@@ -1,0 +1,272 @@
+---
+title: 'Routing'
+description: 'Define and organize your application routes with Kit'
+icon: 'route'
+---
+
+Kit provides a clean, Laravel-inspired routing system that lets you define routes declaratively using the `routes!` macro. Routes map URLs to handler functions (controllers), support dynamic parameters, named routes for URL generation, and per-route middleware.
+
+## Defining Routes
+
+Routes are defined in `src/routes.rs` using the `routes!` macro. Each route specifies an HTTP method, a path, and a handler function:
+
+```rust
+// src/routes.rs
+use kit::{get, post, put, delete, routes};
+use crate::controllers;
+
+routes! {
+    get("/", controllers::home::index).name("home"),
+    get("/users", controllers::user::index).name("users.index"),
+    get("/users/{id}", controllers::user::show).name("users.show"),
+    post("/users", controllers::user::store).name("users.store"),
+    put("/users/{id}", controllers::user::update).name("users.update"),
+    delete("/users/{id}", controllers::user::destroy).name("users.destroy"),
+}
+```
+
+The `routes!` macro automatically generates a `register()` function that returns a configured `Router`.
+
+## HTTP Methods
+
+Kit provides helper functions for all standard HTTP methods:
+
+| Method | Function | Usage |
+|--------|----------|-------|
+| GET | `get(path, handler)` | Retrieve resources |
+| POST | `post(path, handler)` | Create resources |
+| PUT | `put(path, handler)` | Update resources |
+| DELETE | `delete(path, handler)` | Delete resources |
+
+```rust
+routes! {
+    get("/articles", controllers::article::index),
+    post("/articles", controllers::article::store),
+    put("/articles/{id}", controllers::article::update),
+    delete("/articles/{id}", controllers::article::destroy),
+}
+```
+
+## Route Parameters
+
+Dynamic segments in your URLs are defined using curly braces `{param}`. These parameters are extracted and made available to your handler through the request:
+
+```rust
+// Route definition
+get("/users/{id}", controllers::user::show).name("users.show"),
+get("/posts/{post_id}/comments/{comment_id}", controllers::comment::show),
+```
+
+Access parameters in your controller using `request.param()`:
+
+```rust
+// src/controllers/user.rs
+use kit::{Request, Response, HttpResponse};
+
+pub async fn show(request: Request) -> Response {
+    // Extract the 'id' parameter from the URL
+    let user_id = request.param("id").unwrap_or("0");
+
+    Ok(HttpResponse::text(format!("User ID: {}", user_id)))
+}
+```
+
+For nested parameters:
+
+```rust
+pub async fn show(request: Request) -> Response {
+    let post_id = request.param("post_id").unwrap_or("0");
+    let comment_id = request.param("comment_id").unwrap_or("0");
+
+    Ok(HttpResponse::text(format!("Post: {}, Comment: {}", post_id, comment_id)))
+}
+```
+
+## Named Routes
+
+Named routes allow you to generate URLs without hardcoding paths. Use `.name()` to assign a name to a route:
+
+```rust
+routes! {
+    get("/", controllers::home::index).name("home"),
+    get("/users", controllers::user::index).name("users.index"),
+    get("/users/{id}", controllers::user::show).name("users.show"),
+    post("/users", controllers::user::store).name("users.store"),
+}
+```
+
+### Naming Conventions
+
+Follow Laravel-style naming conventions for consistency:
+
+| Route | Name |
+|-------|------|
+| `GET /users` | `users.index` |
+| `GET /users/{id}` | `users.show` |
+| `POST /users` | `users.store` |
+| `PUT /users/{id}` | `users.update` |
+| `DELETE /users/{id}` | `users.destroy` |
+
+### URL Generation
+
+Generate URLs from named routes using the `route()` function:
+
+```rust
+use kit::route;
+
+// Simple route without parameters
+let home_url = route("home", &[]);
+// Returns: Some("/")
+
+// Route with parameters
+let user_url = route("users.show", &[("id", "123")]);
+// Returns: Some("/users/123")
+
+// Multiple parameters
+let comment_url = route("comments.show", &[("post_id", "5"), ("comment_id", "42")]);
+// Returns: Some("/posts/5/comments/42")
+```
+
+This is especially useful for redirects:
+
+```rust
+use kit::{route, HttpResponse, Response};
+
+pub async fn store(request: Request) -> Response {
+    // Create user...
+
+    // Redirect to the user's profile
+    let url = route("users.show", &[("id", "123")]).unwrap();
+    HttpResponse::redirect(&url)
+}
+```
+
+## Route Middleware
+
+Apply middleware to specific routes using `.middleware()`:
+
+```rust
+use kit::{get, post, routes};
+use crate::controllers;
+use crate::middleware::AuthMiddleware;
+
+routes! {
+    // Public routes
+    get("/", controllers::home::index).name("home"),
+    get("/login", controllers::auth::login_form).name("login"),
+    post("/login", controllers::auth::login).name("login.submit"),
+
+    // Protected routes
+    get("/dashboard", controllers::dashboard::index)
+        .name("dashboard")
+        .middleware(AuthMiddleware),
+    get("/profile", controllers::user::profile)
+        .name("profile")
+        .middleware(AuthMiddleware),
+}
+```
+
+You can chain multiple middleware on a single route:
+
+```rust
+get("/admin", controllers::admin::index)
+    .middleware(AuthMiddleware)
+    .middleware(AdminMiddleware),
+```
+
+<Note>
+For more details on creating middleware, see the [Middleware documentation](/core/middleware).
+</Note>
+
+## Route Groups
+
+Group related routes that share a common prefix and/or middleware using the fluent `Router` API:
+
+```rust
+use kit::Router;
+use crate::controllers;
+use crate::middleware::{AuthMiddleware, ApiMiddleware};
+
+Router::new()
+    // Public routes
+    .get("/", controllers::home::index)
+    .get("/login", controllers::auth::login_form)
+
+    // API routes with shared prefix
+    .group("/api", |r| {
+        r.get("/users", controllers::api::user::index)     // GET /api/users
+         .post("/users", controllers::api::user::store)    // POST /api/users
+         .get("/users/{id}", controllers::api::user::show) // GET /api/users/{id}
+    })
+    .middleware(ApiMiddleware)
+
+    // Admin routes with auth middleware
+    .group("/admin", |r| {
+        r.get("/dashboard", controllers::admin::dashboard) // GET /admin/dashboard
+         .get("/settings", controllers::admin::settings)   // GET /admin/settings
+    })
+    .middleware(AuthMiddleware)
+```
+
+### Group Features
+
+- **Prefix**: All routes in the group have the prefix prepended to their paths
+- **Middleware**: Apply middleware to all routes in the group at once
+- **Chaining**: Groups can be chained with other routes and groups
+
+## File Organization
+
+The standard file structure for routing in a Kit application:
+
+```
+src/
+├── routes.rs           # Route definitions
+├── controllers/
+│   ├── mod.rs         # Re-export all controllers
+│   ├── home.rs        # Home controller
+│   ├── user.rs        # User controller
+│   └── api/
+│       ├── mod.rs     # API controllers module
+│       └── user.rs    # API user controller
+├── middleware/
+│   ├── mod.rs         # Re-export all middleware
+│   └── auth.rs        # Auth middleware
+└── main.rs
+```
+
+**src/routes.rs:**
+```rust
+use kit::{get, post, put, delete, routes};
+use crate::controllers;
+use crate::middleware::AuthMiddleware;
+
+routes! {
+    get("/", controllers::home::index).name("home"),
+
+    // User routes
+    get("/users", controllers::user::index).name("users.index"),
+    get("/users/{id}", controllers::user::show).name("users.show"),
+    post("/users", controllers::user::store).name("users.store"),
+
+    // Protected routes
+    get("/dashboard", controllers::home::dashboard)
+        .name("dashboard")
+        .middleware(AuthMiddleware),
+}
+```
+
+## Summary
+
+| Feature | Syntax | Description |
+|---------|--------|-------------|
+| Define routes | `routes! { ... }` | Macro for clean route definitions |
+| GET route | `get(path, handler)` | Handle GET requests |
+| POST route | `post(path, handler)` | Handle POST requests |
+| PUT route | `put(path, handler)` | Handle PUT requests |
+| DELETE route | `delete(path, handler)` | Handle DELETE requests |
+| Route parameter | `/users/{id}` | Dynamic URL segment |
+| Access parameter | `request.param("id")` | Get parameter value |
+| Named route | `.name("users.show")` | Name for URL generation |
+| Generate URL | `route("name", &[...])` | Generate URL from name |
+| Route middleware | `.middleware(M)` | Apply middleware to route |
+| Route group | `.group("/prefix", \|r\| ...)` | Group routes with prefix |
