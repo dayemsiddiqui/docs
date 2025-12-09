@@ -1,56 +1,98 @@
 ---
 title: "Introduction"
-description: "Kit aims to bring the DX of Laravel and combine it with the robustness, performance and type-safety of Rust. Kit allows you to write type-safe and performant web apps with the DX and velocity of Laravel."
+description: "Kit brings the DX of Laravel to Rust - type-safe, performant web apps with the velocity you love"
 ---
 
-## Setting up
+## What is Kit?
 
-Get your documentation site up and running in minutes.
+Kit is a Laravel-inspired web framework for Rust that combines:
 
-<Card title="Start here" icon="rocket" horizontal href="/quickstart">
-  Follow our three step quickstart guide.
+- **Laravel's DX** - Familiar patterns like controllers, routes, middleware, and Eloquent-style models
+- **Rust's Performance** - Native speed with zero-cost abstractions
+- **Type Safety** - Catch errors at compile time, not runtime
+- **Modern Frontend** - First-class Inertia.js + React integration
+
+## Quick Start
+
+Get started in under 5 minutes:
+
+<Card title="Quickstart Guide" icon="rocket" href="/quickstart">
+  Create your first Kit application step by step.
 </Card>
 
-## Make it yours
-
-Design a docs site that looks great and empowers your users.
+## Core Features
 
 <Columns cols={2}>
-  <Card title="Edit locally" icon="pen-to-square" href="/development">
-    Edit your docs locally and preview them in real time.
+  <Card title="Routing" icon="route" href="/core/routing">
+    Laravel-style routing with the `routes!` macro.
   </Card>
-  <Card title="Customize your site" icon="palette" href="/essentials/settings">
-    Customize the design and colors of your site to match your brand.
+  <Card title="Controllers" icon="code" href="/core/controllers">
+    Request handlers with dependency injection.
   </Card>
-  <Card title="Set up navigation" icon="map" href="/essentials/navigation">
-    Organize your docs to help users find what they need and succeed with your product.
+  <Card title="Database" icon="database" href="/database/overview">
+    SeaORM with migrations and Model traits.
   </Card>
-  <Card title="API documentation" icon="terminal" href="/api-reference/introduction">
-    Auto-generate API documentation from OpenAPI specifications.
+  <Card title="Inertia.js" icon="browser" href="/frontend/overview">
+    Build SPAs without writing an API.
   </Card>
 </Columns>
 
-## Create beautiful pages
+## Tutorials
 
-Everything you need to create world-class documentation.
+Learn by building:
 
 <Columns cols={2}>
-  <Card title="Write with MDX" icon="pen-fancy" href="/essentials/markdown">
-    Use MDX to style your docs pages.
+  <Card title="Build a JSON API" icon="code" href="/tutorials/json-api">
+    Create a complete REST API for todos.
   </Card>
-  <Card title="Code samples" icon="code" href="/essentials/code">
-    Add sample code to demonstrate how to use your product.
-  </Card>
-  <Card title="Images" icon="image" href="/essentials/images">
-    Display images and other media.
-  </Card>
-  <Card title="Reusable snippets" icon="recycle" href="/essentials/reusable-snippets">
-    Write once and reuse across your docs.
+  <Card title="Build with Inertia" icon="layer-group" href="/tutorials/inertia-crud">
+    Full-stack todo app with React.
   </Card>
 </Columns>
 
-## Need inspiration?
+## Why Kit?
 
-<Card title="See complete examples" icon="stars" href="https://mintlify.com/customers">
-  Browse our showcase of exceptional documentation sites.
+| Feature | Benefit |
+|---------|---------|
+| **Familiar Patterns** | If you know Laravel, you'll feel at home |
+| **Compile-Time Safety** | Catch bugs before they reach production |
+| **Native Performance** | Rust's speed without the complexity |
+| **Full-Stack** | Backend + React frontend in one project |
+| **Code Generation** | CLI tools to scaffold common patterns |
+
+## Example
+
+A simple controller in Kit:
+
+```rust
+use kit::{Request, Response, json_response};
+
+pub async fn index(_req: Request) -> Response {
+    json_response!({
+        "message": "Hello from Kit!"
+    })
+}
+```
+
+With Inertia for a full-stack experience:
+
+```rust
+use kit::{Request, Response, inertia_response, InertiaProps};
+
+#[derive(InertiaProps)]
+pub struct HomeProps {
+    pub title: String,
+}
+
+pub async fn index(_req: Request) -> Response {
+    inertia_response!("Home", HomeProps {
+        title: "Welcome to Kit!".to_string(),
+    })
+}
+```
+
+## Get Started
+
+<Card title="Installation" icon="download" href="/quickstart">
+  Install Kit and create your first project.
 </Card>

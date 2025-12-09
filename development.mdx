@@ -1,94 +1,213 @@
 ---
 title: 'Development'
-description: 'Preview changes locally to update your docs'
+description: 'Development workflow and tools for building Kit applications'
+icon: 'code'
 ---
 
-<Info>
-  **Prerequisites**:
-  - Node.js version 19 or higher
-  - A docs repository with a `docs.json` file
-</Info>
+This guide covers the development workflow for building Kit applications, including the dev server, hot reloading, and useful commands.
 
-Follow these steps to install and run Mintlify on your operating system.
+## Development Server
 
-<Steps>
-<Step title="Install the Mintlify CLI">
+Start the development server with:
 
 ```bash
-npm i -g mint
+kit serve
 ```
-</Step>
 
-<Step title="Preview locally">
+This starts:
+- **Backend server** on `http://localhost:8080`
+- **Vite dev server** on `http://localhost:5173` (for frontend assets)
 
-Navigate to your docs directory where your `docs.json` file is located, and run the following command:
+### Backend Only Mode
+
+If you only need the Rust backend (no frontend):
 
 ```bash
-mint dev
+kit serve --backend-only
 ```
 
-A local preview of your documentation will be available at `http://localhost:3000`.
+### Custom Ports
 
-</Step>
-</Steps>
+Configure ports using environment variables:
 
-## Custom ports
+```env
+# .env
+PORT=3000
+VITE_DEV_SERVER=http://localhost:5174
+```
 
-By default, Mintlify uses port 3000. You can customize the port Mintlify runs on by using the `--port` flag. For example, to run Mintlify on port 3333, use this command:
+## Project Structure
+
+A typical Kit project structure:
+
+```
+my-app/
+├── src/
+│   ├── main.rs           # Application entry point
+│   ├── routes.rs         # Route definitions
+│   ├── controllers/      # Request handlers
+│   ├── models/           # Database entities
+│   ├── actions/          # Business logic
+│   └── middleware/       # Custom middleware
+├── frontend/
+│   ├── src/
+│   │   ├── main.tsx      # Frontend entry
+│   │   └── pages/        # React components
+│   ├── package.json
+│   └── vite.config.ts
+├── migrations/           # Database migrations
+├── .env                  # Environment config
+└── Cargo.toml
+```
+
+## Development Workflow
+
+### 1. Make Changes
+
+Edit your Rust code in `src/` or React code in `frontend/src/`.
+
+### 2. Automatic Recompilation
+
+Kit watches for changes:
+- **Rust changes**: Recompiles automatically
+- **React changes**: Hot module replacement (instant updates)
+
+### 3. Test Your Changes
+
+Visit `http://localhost:8080` to see your changes.
+
+## Database Development
+
+### Running Migrations
 
 ```bash
-mint dev --port 3333
+# Run all pending migrations
+kit migrate
+
+# Check migration status
+kit migrate:status
+
+# Rollback last migration
+kit migrate:rollback
 ```
 
-If you attempt to run Mintlify on a port that's already in use, it will use the next available port:
+### Syncing Entities
 
-```md
-Port 3000 is already in use. Trying 3001 instead.
-```
-
-## Mintlify versions
-
-Please note that each CLI release is associated with a specific version of Mintlify. If your local preview does not align with the production version, please update the CLI:
+After modifying migrations, regenerate entity files:
 
 ```bash
-npm mint update
+kit db:sync
 ```
 
-## Validating links
+### Fresh Database
 
-The CLI can assist with validating links in your documentation. To identify any broken links, use the following command:
+Reset and re-run all migrations:
 
 ```bash
-mint broken-links
+kit migrate:fresh
 ```
 
-## Deployment
+## Code Generation
 
-If the deployment is successful, you should see the following:
+Kit provides generators to scaffold common components:
 
-<Frame>
-  <img src="/images/checks-passed.png" alt="Screenshot of a deployment confirmation message that says All checks have passed." style={{ borderRadius: '0.5rem' }} />
-</Frame>
+```bash
+# Create a controller
+kit make:controller users
 
-## Code formatting
+# Create a model
+kit make:model User
 
-We suggest using extensions on your IDE to recognize and format MDX. If you're a VSCode user, consider the [MDX VSCode extension](https://marketplace.visualstudio.com/items?itemName=unifiedjs.vscode-mdx) for syntax highlighting, and [Prettier](https://marketplace.visualstudio.com/items?itemName=esbenp.prettier-vscode) for code formatting.
+# Create a migration
+kit make:migration create_posts_table
 
-## Troubleshooting
+# Create a page component
+kit make:page Home
 
-<AccordionGroup>
-  <Accordion title='Error: Could not load the "sharp" module using the darwin-arm64 runtime'>
+# Generate TypeScript types
+kit generate-types
+```
 
-    This may be due to an outdated version of node. Try the following:
-    1. Remove the currently-installed version of the CLI: `npm remove -g mint`
-    2. Upgrade to Node v19 or higher.
-    3. Reinstall the CLI: `npm i -g mint`
-  </Accordion>
+## Environment Configuration
 
-  <Accordion title="Issue: Encountering an unknown error">
-  
-    Solution: Go to the root of your device and delete the `~/.mintlify` folder. Then run `mint dev` again.
-  </Accordion>
-</AccordionGroup>
+Configure your app using `.env`:
 
-Curious about what changed in the latest CLI version? Check out the [CLI changelog](https://www.npmjs.com/package/mintlify?activeTab=versions).
+```env
+# Server
+PORT=8080
+
+# Database
+DATABASE_URL=sqlite:./database.db
+
+# Inertia/Frontend
+INERTIA_DEVELOPMENT=true
+VITE_DEV_SERVER=http://localhost:5173
+```
+
+## Debugging
+
+### Logging
+
+Kit uses Rust's standard logging. Enable debug output:
+
+```bash
+RUST_LOG=debug kit serve
+```
+
+### Database Queries
+
+Enable SQL query logging:
+
+```env
+RUST_LOG=sea_orm=debug kit serve
+```
+
+## Testing
+
+Run your test suite:
+
+```bash
+cargo test
+```
+
+### Frontend Tests
+
+```bash
+cd frontend
+npm test
+```
+
+## Building for Production
+
+### Build the Backend
+
+```bash
+cargo build --release
+```
+
+### Build the Frontend
+
+```bash
+cd frontend
+npm run build
+```
+
+### Run Production Server
+
+```bash
+INERTIA_DEVELOPMENT=false ./target/release/your-app
+```
+
+## Useful Commands
+
+| Command | Description |
+|---------|-------------|
+| `kit serve` | Start dev server |
+| `kit serve --backend-only` | Start without Vite |
+| `kit migrate` | Run migrations |
+| `kit migrate:fresh` | Reset database |
+| `kit db:sync` | Regenerate entities |
+| `kit make:controller <name>` | Create controller |
+| `kit make:model <name>` | Create model |
+| `kit generate-types` | Generate TS types |
+| `cargo build --release` | Production build |
