@@ -26,6 +26,7 @@
             "pages": [
               "core/routing",
               "core/controllers",
+              "core/actions",
               "core/responses",
               "core/middleware"
             ]
