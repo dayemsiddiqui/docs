@@ -1,0 +1,422 @@
+---
+title: 'Controllers'
+description: 'Handle HTTP requests and return responses with Kit controllers'
+icon: 'gamepad'
+---
+
+Kit controllers are async functions that handle HTTP requests and return responses. Following Laravel's conventions, controllers organize your application's request handling logic into dedicated modules, making your codebase clean and maintainable.
+
+## Generating Controllers
+
+The fastest way to create a new controller is using the Kit CLI:
+
+```bash
+kit make:controller User
+```
+
+This command will:
+1. Create `src/controllers/user.rs` with a controller stub
+2. Update `src/controllers/mod.rs` to export the new controller
+
+<CodeGroup>
+
+```bash Examples
+# Creates user.rs in src/controllers/
+kit make:controller User
+
+# Creates product.rs in src/controllers/
+kit make:controller Product
+
+# Controller name is converted to snake_case for the file
+kit make:controller OrderItem  # Creates order_item.rs
+```
+
+```rust Generated File
+//! User controller
+
+use kit::{json_response, Request, Response};
+
+pub async fn invoke(_req: Request) -> Response {
+    json_response!({
+        "controller": "User"
+    })
+}
+```
+
+</CodeGroup>
+
+## Controller Structure
+
+Controllers are async functions that take a `Request` and return a `Response`:
+
+```rust
+use kit::{Request, Response, json_response};
+
+pub async fn index(_req: Request) -> Response {
+    json_response!({
+        "message": "Hello from controller"
+    })
+}
+```
+
+### The Handler Signature
+
+Every controller handler follows this pattern:
+
+```rust
+pub async fn handler_name(request: Request) -> Response
+```
+
+- **`async fn`**: Controllers are asynchronous, allowing non-blocking I/O operations
+- **`Request`**: Contains all information about the incoming HTTP request
+- **`Response`**: An alias for `Result<HttpResponse, HttpResponse>`, enabling the `?` operator
+
+## The Request Object
+
+The `Request` struct provides Laravel-like access to request data:
+
+### Getting Route Parameters
+
+Access dynamic URL segments defined in your routes:
+
+```rust
+use kit::{Request, Response, json_response};
+
+// Route: get("/users/{id}", controllers::user::show)
+pub async fn show(req: Request) -> Response {
+    // Using ? operator - returns 400 error if param missing
+    let id = req.param("id")?;
+
+    json_response!({
+        "user_id": id
+    })
+}
+```
+
+For routes with multiple parameters:
+
+```rust
+// Route: get("/posts/{post_id}/comments/{comment_id}", handler)
+pub async fn show_comment(req: Request) -> Response {
+    let post_id = req.param("post_id")?;
+    let comment_id = req.param("comment_id")?;
+
+    json_response!({
+        "post_id": post_id,
+        "comment_id": comment_id
+    })
+}
+```
+
+### Getting Headers
+
+Access HTTP headers from the request:
+
+```rust
+pub async fn index(req: Request) -> Response {
+    // Get a specific header (returns Option<&str>)
+    let auth = req.header("Authorization");
+    let content_type = req.header("Content-Type");
+
+    if let Some(token) = auth {
+        // Process authenticated request
+    }
+
+    json_response!({"status": "ok"})
+}
+```
+
+### Request Methods
+
+| Method | Return Type | Description |
+|--------|-------------|-------------|
+| `method()` | `&Method` | HTTP method (GET, POST, etc.) |
+| `path()` | `&str` | Request path (e.g., `/users/123`) |
+| `param(name)` | `Result<&str, ParamError>` | Get a route parameter |
+| `params()` | `&HashMap<String, String>` | Get all route parameters |
+| `header(name)` | `Option<&str>` | Get a header value |
+| `is_inertia()` | `bool` | Check if Inertia.js request |
+| `inertia_version()` | `Option<&str>` | Get Inertia version |
+
+## Creating Responses
+
+Controllers return responses using helper methods and macros:
+
+### JSON Responses
+
+```rust
+use kit::{json_response, Request, Response};
+
+pub async fn index(_req: Request) -> Response {
+    json_response!({
+        "users": [
+            {"id": 1, "name": "John"},
+            {"id": 2, "name": "Jane"}
+        ]
+    })
+}
+```
+
+### Text Responses
+
+```rust
+use kit::{text_response, Request, Response};
+
+pub async fn health(_req: Request) -> Response {
+    text_response!("OK")
+}
+```
+
+### Setting Status Codes
+
+```rust
+use kit::{json_response, Request, Response, ResponseExt};
+
+pub async fn store(_req: Request) -> Response {
+    // Create user...
+
+    json_response!({"id": 1, "created": true})
+        .status(201)
+}
+```
+
+<Note>
+For more response options, see the [Responses documentation](/core/responses).
+</Note>
+
+## RESTful Controllers
+
+Kit encourages organizing controllers following REST conventions:
+
+```rust
+// src/controllers/user.rs
+use kit::{json_response, redirect, Request, Response, ResponseExt};
+
+/// GET /users - List all users
+pub async fn index(_req: Request) -> Response {
+    json_response!({
+        "users": [
+            {"id": 1, "name": "John"},
+            {"id": 2, "name": "Jane"}
+        ]
+    })
+}
+
+/// GET /users/{id} - Show a specific user
+pub async fn show(req: Request) -> Response {
+    let id = req.param("id")?;
+
+    json_response!({
+        "id": id,
+        "name": format!("User {}", id)
+    })
+}
+
+/// POST /users - Create a new user
+pub async fn store(_req: Request) -> Response {
+    // Create user logic...
+
+    json_response!({"id": 1, "created": true})
+        .status(201)
+}
+
+/// PUT /users/{id} - Update a user
+pub async fn update(req: Request) -> Response {
+    let id = req.param("id")?;
+
+    // Update user logic...
+
+    json_response!({
+        "id": id,
+        "updated": true
+    })
+}
+
+/// DELETE /users/{id} - Delete a user
+pub async fn destroy(req: Request) -> Response {
+    let _id = req.param("id")?;
+
+    // Delete user logic...
+
+    redirect!("users.index").into()
+}
+```
+
+Register these in your routes:
+
+```rust
+// src/routes.rs
+use kit::{get, post, put, delete, routes};
+use crate::controllers;
+
+routes! {
+    get("/users", controllers::user::index).name("users.index"),
+    get("/users/{id}", controllers::user::show).name("users.show"),
+    post("/users", controllers::user::store).name("users.store"),
+    put("/users/{id}", controllers::user::update).name("users.update"),
+    delete("/users/{id}", controllers::user::destroy).name("users.destroy"),
+}
+```
+
+## Error Handling in Controllers
+
+Use the `?` operator for clean error propagation:
+
+```rust
+use kit::{AppError, Request, Response, json_response};
+
+pub async fn show(req: Request) -> Response {
+    // Returns 400 if param is missing
+    let id = req.param("id")?;
+
+    // Simulate database lookup
+    let user = find_user(id).await?;
+
+    json_response!({
+        "user": user
+    })
+}
+
+async fn find_user(id: &str) -> Result<User, AppError> {
+    // Database query...
+    if id == "999" {
+        return Err(AppError::not_found("User not found"));
+    }
+    Ok(User { id: id.to_string(), name: "John".to_string() })
+}
+```
+
+<Note>
+For more error handling options, see the [Responses documentation](/core/responses#error-handling).
+</Note>
+
+## Dependency Injection
+
+Use `App::resolve()` to inject dependencies from the container:
+
+```rust
+use kit::{App, Request, Response, json_response};
+use crate::actions::UserService;
+
+pub async fn index(_req: Request) -> Response {
+    // Resolve a service from the container
+    let user_service = App::resolve::<UserService>();
+
+    let users = user_service.list_all();
+
+    json_response!({
+        "users": users
+    })
+}
+```
+
+## File Organization
+
+The standard file structure for controllers:
+
+```
+src/
+├── controllers/
+│   ├── mod.rs          # Re-export all controllers
+│   ├── home.rs         # Home controller
+│   ├── user.rs         # User controller
+│   ├── product.rs      # Product controller
+│   └── api/            # Nested API controllers
+│       ├── mod.rs
+│       └── user.rs     # API user controller
+├── routes.rs           # Route definitions
+└── main.rs
+```
+
+**src/controllers/mod.rs:**
+```rust
+pub mod home;
+pub mod user;
+pub mod product;
+pub mod api;
+```
+
+**src/controllers/user.rs:**
+```rust
+use kit::{json_response, Request, Response};
+
+pub async fn index(_req: Request) -> Response {
+    json_response!({"controller": "user"})
+}
+
+pub async fn show(req: Request) -> Response {
+    let id = req.param("id")?;
+    json_response!({"id": id})
+}
+```
+
+## Practical Examples
+
+### API Controller with Validation
+
+```rust
+use kit::{AppError, Request, Response, json_response, ResponseExt};
+
+pub async fn store(req: Request) -> Response {
+    // Get required header
+    let content_type = req.header("Content-Type")
+        .ok_or_else(|| AppError::bad_request("Content-Type header required"))?;
+
+    if !content_type.contains("application/json") {
+        return Err(AppError::bad_request("Content-Type must be application/json").into());
+    }
+
+    // Process the request...
+
+    json_response!({"created": true})
+        .status(201)
+}
+```
+
+### Controller with Redirects
+
+```rust
+use kit::{redirect, route, Request, Response};
+
+pub async fn store(_req: Request) -> Response {
+    // Create resource...
+
+    // Redirect to named route
+    redirect!("users.index").into()
+}
+
+pub async fn update(req: Request) -> Response {
+    let id = req.param("id")?;
+
+    // Update resource...
+
+    // Redirect with route parameter
+    redirect!("users.show")
+        .with("id", id)
+        .into()
+}
+
+pub async fn search(_req: Request) -> Response {
+    // Redirect with query parameters
+    redirect!("users.index")
+        .query("page", "1")
+        .query("sort", "name")
+        .into()
+}
+```
+
+## Summary
+
+| Feature | Usage |
+|---------|-------|
+| Generate controller | `kit make:controller Name` |
+| Handler signature | `pub async fn name(req: Request) -> Response` |
+| Get route param | `req.param("id")?` |
+| Get all params | `req.params()` |
+| Get header | `req.header("Authorization")` |
+| Get HTTP method | `req.method()` |
+| Get path | `req.path()` |
+| JSON response | `json_response!({...})` |
+| Text response | `text_response!("...")` |
+| Set status | `.status(201)` |
+| Redirect | `redirect!("route.name").into()` |
