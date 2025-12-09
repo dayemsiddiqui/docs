@@ -1,0 +1,291 @@
+---
+title: 'TypeScript Types'
+description: 'Generate TypeScript types from your Rust props structs'
+icon: 'code'
+---
+
+Kit can automatically generate TypeScript interfaces from your Rust `InertiaProps` structs, ensuring type safety between your backend and frontend.
+
+## Generating Types
+
+Run the generate-types command:
+
+```bash
+kit generate-types
+```
+
+This scans your Rust source files for `#[derive(InertiaProps)]` structs and generates TypeScript interfaces in `frontend/src/types/inertia-props.ts`.
+
+## How It Works
+
+Given this Rust code:
+
+```rust
+// src/controllers/home.rs
+use kit::InertiaProps;
+use serde::Serialize;
+
+#[derive(Serialize)]
+pub struct User {
+    pub id: i32,
+    pub name: String,
+    pub email: String,
+}
+
+#[derive(InertiaProps)]
+pub struct HomeProps {
+    pub title: String,
+    pub message: String,
+    pub user: User,
+    pub count: i32,
+    pub tags: Vec<String>,
+    pub metadata: Option<String>,
+}
+```
+
+Kit generates:
+
+```typescript
+// frontend/src/types/inertia-props.ts
+export interface User {
+  id: number
+  name: string
+  email: string
+}
+
+export interface HomeProps {
+  title: string
+  message: string
+  user: User
+  count: number
+  tags: string[]
+  metadata: string | null
+}
+```
+
+## Type Mappings
+
+Kit converts Rust types to TypeScript equivalents:
+
+| Rust Type | TypeScript Type |
+|-----------|-----------------|
+| `String`, `&str` | `string` |
+| `i8`, `i16`, `i32`, `i64` | `number` |
+| `u8`, `u16`, `u32`, `u64` | `number` |
+| `f32`, `f64` | `number` |
+| `bool` | `boolean` |
+| `Option<T>` | `T \| null` |
+| `Vec<T>` | `T[]` |
+| `HashMap<K, V>` | `Record<K, V>` |
+| Custom structs | Generated interface |
+
+## Using Generated Types
+
+Import types in your React components:
+
+```tsx
+// frontend/src/pages/Home.tsx
+import type { HomeProps } from '../types/inertia-props'
+
+export default function Home({ title, message, user, tags }: HomeProps) {
+  return (
+    <div>
+      <h1>{title}</h1>
+      <p>{message}</p>
+
+      <div>
+        <h2>Welcome, {user.name}</h2>
+        <p>Email: {user.email}</p>
+      </div>
+
+      <ul>
+        {tags.map((tag) => (
+          <li key={tag}>{tag}</li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+```
+
+## Nested Structs
+
+Nested structs are automatically included:
+
+```rust
+#[derive(Serialize)]
+pub struct Address {
+    pub street: String,
+    pub city: String,
+    pub zip: String,
+}
+
+#[derive(Serialize)]
+pub struct Company {
+    pub name: String,
+    pub address: Address,
+}
+
+#[derive(InertiaProps)]
+pub struct ProfileProps {
+    pub user_name: String,
+    pub company: Company,
+}
+```
+
+Generates:
+
+```typescript
+export interface Address {
+  street: string
+  city: string
+  zip: string
+}
+
+export interface Company {
+  name: string
+  address: Address
+}
+
+export interface ProfileProps {
+  user_name: string
+  company: Company
+}
+```
+
+## Best Practices
+
+### Run After Schema Changes
+
+Regenerate types whenever you modify props:
+
+```bash
+# After changing Rust props
+kit generate-types
+```
+
+### Add to Build Process
+
+Include type generation in your development workflow:
+
+```bash
+# In package.json scripts
+{
+  "scripts": {
+    "dev": "kit generate-types && vite",
+    "build": "kit generate-types && vite build"
+  }
+}
+```
+
+### Use Strict Mode
+
+Enable strict TypeScript checking in `tsconfig.json`:
+
+```json
+{
+  "compilerOptions": {
+    "strict": true,
+    "noUncheckedIndexedAccess": true
+  }
+}
+```
+
+### Handle Optional Values
+
+Always handle `null` cases for `Option<T>` fields:
+
+```tsx
+// Rust: pub avatar_url: Option<String>
+// TypeScript: avatar_url: string | null
+
+function UserAvatar({ avatar_url }: { avatar_url: string | null }) {
+  if (!avatar_url) {
+    return <DefaultAvatar />
+  }
+  return <img src={avatar_url} alt="Avatar" />
+}
+```
+
+## Workflow Integration
+
+### Development Workflow
+
+1. Define props in Rust controller
+2. Run `kit generate-types`
+3. Import types in React component
+4. Get full autocomplete and type checking
+
+### Example Workflow
+
+```rust
+// 1. Define props in Rust
+#[derive(InertiaProps)]
+pub struct TodoListProps {
+    pub todos: Vec<Todo>,
+    pub filter: String,
+    pub total_count: i32,
+}
+```
+
+```bash
+# 2. Generate types
+kit generate-types
+```
+
+```tsx
+// 3. Use in React with full type safety
+import type { TodoListProps } from '../types/inertia-props'
+
+export default function TodoList({ todos, filter, total_count }: TodoListProps) {
+  // Full autocomplete for todos, filter, total_count
+  return (
+    <div>
+      <h1>Todos ({total_count})</h1>
+      <p>Filter: {filter}</p>
+      <ul>
+        {todos.map((todo) => (
+          // Full autocomplete for todo.id, todo.title, etc.
+          <li key={todo.id}>{todo.title}</li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+```
+
+## Troubleshooting
+
+### Types Not Updating
+
+If types aren't reflecting your changes:
+
+1. Ensure structs have `#[derive(InertiaProps)]`
+2. Run `kit generate-types` again
+3. Restart your TypeScript language server
+
+### Missing Nested Types
+
+For nested structs to be included, they must be:
+- Used in an `InertiaProps` struct
+- Have `#[derive(Serialize)]`
+
+### Type Errors
+
+If you get type mismatches:
+- Check that Rust and TypeScript types align
+- Verify `Option<T>` handling (generates `T | null`)
+- Ensure vectors generate arrays (`Vec<T>` → `T[]`)
+
+## Summary
+
+| Command | Description |
+|---------|-------------|
+| `kit generate-types` | Generate TypeScript from Rust props |
+
+| Feature | Benefit |
+|---------|---------|
+| Automatic generation | No manual type definitions |
+| Type safety | Catch errors at compile time |
+| Autocomplete | Full IDE support |
+| Nested types | Complex structures supported |

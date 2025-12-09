@@ -61,6 +61,20 @@
         ]
       },
       {
+        "tab": "Frontend",
+        "groups": [
+          {
+            "group": "Inertia.js",
+            "pages": [
+              "frontend/overview",
+              "frontend/inertia-responses",
+              "frontend/pages",
+              "frontend/typescript-types"
+            ]
+          }
+        ]
+      },
+      {
         "tab": "Database",
         "groups": [
           {
