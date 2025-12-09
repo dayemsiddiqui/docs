@@ -22,6 +22,12 @@
             ]
           },
           {
+            "group": "Core concepts",
+            "pages": [
+              "core/middleware"
+            ]
+          },
+          {
             "group": "Customization",
             "pages": [
               "essentials/settings",
