@@ -29,6 +29,7 @@
               "core/actions",
               "core/dependency-injection",
               "core/responses",
+              "core/error-handling",
               "core/middleware"
             ]
           },
