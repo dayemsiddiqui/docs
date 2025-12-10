@@ -82,6 +82,173 @@ pub async fn handler_name(request: Request) -> Response
 For handling POST data with validation, see [Form Requests](/core/form-requests).
 </Note>
 
+## Path Parameter Injection
+
+The `#[handler]` macro supports automatic extraction of path parameters directly as function arguments. This eliminates the need to manually call `req.param()`.
+
+### Primitive Path Parameters
+
+Declare path parameters as function arguments with primitive types:
+
+```rust
+use kit::{handler, json_response, Response};
+
+// Route: get("/users/{id}", controllers::user::show)
+#[handler]
+pub async fn show(id: i32) -> Response {
+    json_response!({
+        "user_id": id
+    })
+}
+
+// Route: get("/posts/{slug}", controllers::post::show)
+#[handler]
+pub async fn show_by_slug(slug: String) -> Response {
+    json_response!({
+        "slug": slug
+    })
+}
+```
+
+### Multiple Path Parameters
+
+Extract multiple parameters in a single handler:
+
+```rust
+// Route: get("/posts/{post_id}/comments/{comment_id}", handler)
+#[handler]
+pub async fn show_comment(post_id: i32, comment_id: i32) -> Response {
+    json_response!({
+        "post_id": post_id,
+        "comment_id": comment_id
+    })
+}
+```
+
+### Supported Types
+
+| Type | Description |
+|------|-------------|
+| `i32`, `i64` | Signed integers |
+| `u32`, `u64`, `usize` | Unsigned integers |
+| `String` | String values |
+
+<Note>
+The parameter name in your function must match the route parameter name (e.g., `{id}` requires `id: i32`).
+</Note>
+
+## Route Model Binding
+
+Route model binding automatically resolves database models from route parameters. If the model is not found, Kit automatically returns a 404 response.
+
+### Setting Up Route Binding
+
+First, enable route binding for your model using the `route_binding!` macro:
+
+```rust
+// src/models/user.rs
+use sea_orm::entity::prelude::*;
+use kit::{route_binding, Model, ModelMut};
+
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+#[sea_orm(table_name = "users")]
+pub struct Model {
+    #[sea_orm(primary_key)]
+    pub id: i32,
+    pub name: String,
+    pub email: String,
+}
+
+impl kit::Model for Entity {}
+impl kit::ModelMut for Entity {}
+
+// Enable route model binding - "user" matches {user} in routes
+route_binding!(Entity, Model, "user");
+```
+
+### Using Route Model Binding in Handlers
+
+Now you can directly accept the model as a handler parameter:
+
+```rust
+use kit::{handler, json_response, Response};
+use crate::models::user;
+
+// Route: get("/users/{user}", controllers::user::show)
+#[handler]
+pub async fn show(user: user::Model) -> Response {
+    // user is automatically fetched from the database
+    // Returns 404 if not found
+    json_response!({
+        "id": user.id,
+        "name": user.name,
+        "email": user.email
+    })
+}
+```
+
+### Combining Models with Form Requests
+
+Mix route model binding with form requests for update operations:
+
+```rust
+use kit::{handler, json_response, Response};
+use crate::models::user;
+use crate::requests::UpdateUserRequest;
+
+// Route: put("/users/{user}", controllers::user::update)
+#[handler]
+pub async fn update(user: user::Model, form: UpdateUserRequest) -> Response {
+    // user: auto-fetched from database (404 if not found)
+    // form: auto-validated from request body
+
+    json_response!({
+        "updated_user_id": user.id,
+        "new_name": form.name
+    })
+}
+```
+
+### Error Responses
+
+| Error | Status Code | Description |
+|-------|-------------|-------------|
+| Model not found | 404 | The requested resource doesn't exist |
+| Invalid parameter | 400 | Parameter couldn't be parsed (e.g., "abc" as i32) |
+| Missing parameter | 400 | Required route parameter is missing |
+
+### Flexibility
+
+You have full control over how you access route parameters:
+
+```rust
+// Option 1: Request passthrough (manual extraction)
+#[handler]
+pub async fn show(req: Request) -> Response {
+    let id = req.param("id")?;
+    // Manual database query...
+}
+
+// Option 2: Primitive path params (no model binding)
+#[handler]
+pub async fn show(id: i32) -> Response {
+    // Just the ID, no automatic model fetch
+}
+
+// Option 3: Route model binding (auto-fetch with 404)
+#[handler]
+pub async fn show(user: user::Model) -> Response {
+    // Model automatically fetched from database
+}
+
+// Option 4: Mix primitives and models
+#[handler]
+pub async fn nested(category_id: i32, product: product::Model) -> Response {
+    // category_id: just extracted as i32
+    // product: auto-fetched from database
+}
+```
+
 ## The Request Object
 
 The `Request` struct provides Laravel-like access to request data:
@@ -423,7 +590,11 @@ pub async fn search(_req: Request) -> Response {
 | Generate controller | `kit make:controller Name` |
 | Handler attribute | `#[handler]` on all controller methods |
 | Handler signature | `pub async fn name(req: Request) -> Response` |
+| Path param handler | `pub async fn name(id: i32) -> Response` |
+| Route model binding | `pub async fn name(user: user::Model) -> Response` |
 | FormRequest handler | `pub async fn name(form: FormRequest) -> Response` |
+| Mixed params | `pub async fn name(user: user::Model, form: UpdateRequest) -> Response` |
+| Enable route binding | `route_binding!(Entity, Model, "param_name")` |
 | Get route param | `req.param("id")?` |
 | Get all params | `req.params()` |
 | Get header | `req.header("Authorization")` |
