@@ -153,52 +153,34 @@ pub async fn store(form: TodoRequest) -> Response {
     redirect("/todos")
 }
 
-// GET /todos/:id/edit
+// GET /todos/{todo}/edit - Route model binding automatically fetches the todo
 #[handler]
-pub async fn edit(req: Request) -> Response {
-    let id: i32 = req.param("id").unwrap().parse().unwrap();
-
-    match Todos::find_by_pk(id).await {
-        Ok(Some(todo)) => {
-            inertia_response!("Todos/Edit", TodoFormProps { todo: Some(todo) })
-        }
-        _ => redirect("/todos"),
-    }
+pub async fn edit(todo: Todo) -> Response {
+    inertia_response!("Todos/Edit", TodoFormProps { todo: Some(todo) })
 }
 
-// PUT /todos/:id
+// PUT /todos/{todo} - Route model binding automatically fetches the todo
 #[handler]
-pub async fn update(req: Request, form: TodoRequest) -> Response {
-    let id: i32 = req.param("id").unwrap().parse().unwrap();
-
-    if let Ok(Some(existing)) = Todos::find_by_pk(id).await {
-        let mut active: ActiveModel = existing.into();
-        active.title = Set(form.title);
-        let _ = Todos::update_one(active).await;
-    }
-
+pub async fn update(todo: Todo, form: TodoRequest) -> Response {
+    let mut active: ActiveModel = todo.into();
+    active.title = Set(form.title);
+    let _ = Todos::update_one(active).await;
     redirect("/todos")
 }
 
-// POST /todos/:id/toggle
+// POST /todos/{todo}/toggle - Route model binding automatically fetches the todo
 #[handler]
-pub async fn toggle(req: Request) -> Response {
-    let id: i32 = req.param("id").unwrap().parse().unwrap();
-
-    if let Ok(Some(existing)) = Todos::find_by_pk(id).await {
-        let mut active: ActiveModel = existing.clone().into();
-        active.completed = Set(!existing.completed);
-        let _ = Todos::update_one(active).await;
-    }
-
+pub async fn toggle(todo: Todo) -> Response {
+    let mut active: ActiveModel = todo.clone().into();
+    active.completed = Set(!todo.completed);
+    let _ = Todos::update_one(active).await;
     redirect("/todos")
 }
 
-// DELETE /todos/:id
+// DELETE /todos/{todo} - Route model binding automatically fetches the todo
 #[handler]
-pub async fn destroy(req: Request) -> Response {
-    let id: i32 = req.param("id").unwrap().parse().unwrap();
-    let _ = Todos::delete_by_pk(id).await;
+pub async fn destroy(todo: Todo) -> Response {
+    let _ = Todos::delete_by_pk(todo.id).await;
     redirect("/todos")
 }
 ```
@@ -215,10 +197,10 @@ routes! {
     get("/todos", todos::index).name("todos.index"),
     get("/todos/create", todos::create).name("todos.create"),
     post("/todos", todos::store).name("todos.store"),
-    get("/todos/{id}/edit", todos::edit).name("todos.edit"),
-    put("/todos/{id}", todos::update).name("todos.update"),
-    post("/todos/{id}/toggle", todos::toggle).name("todos.toggle"),
-    delete("/todos/{id}", todos::destroy).name("todos.destroy"),
+    get("/todos/{todo}/edit", todos::edit).name("todos.edit"),
+    put("/todos/{todo}", todos::update).name("todos.update"),
+    post("/todos/{todo}/toggle", todos::toggle).name("todos.toggle"),
+    delete("/todos/{todo}", todos::destroy).name("todos.destroy"),
 }
 ```
 
@@ -267,19 +249,19 @@ export interface RouteConfig<TData = void> {
 
 // Path parameter types
 export interface TodosToggleParams {
-  id: string;
+  todo: string;
 }
 
 export interface TodosEditParams {
-  id: string;
+  todo: string;
 }
 
 export interface TodosUpdateParams {
-  id: string;
+  todo: string;
 }
 
 export interface TodosDestroyParams {
-  id: string;
+  todo: string;
 }
 
 // Controller namespace - type-safe route helpers
@@ -289,19 +271,19 @@ export const controllers = {
     create: (): RouteConfig => ({ url: '/todos/create', method: 'get' }),
     store: (): RouteConfig => ({ url: '/todos', method: 'post' }),
     edit: (params: TodosEditParams): RouteConfig => ({
-      url: `/todos/${params.id}/edit`,
+      url: `/todos/${params.todo}/edit`,
       method: 'get',
     }),
     update: (params: TodosUpdateParams): RouteConfig => ({
-      url: `/todos/${params.id}`,
+      url: `/todos/${params.todo}`,
       method: 'put',
     }),
     toggle: (params: TodosToggleParams): RouteConfig => ({
-      url: `/todos/${params.id}/toggle`,
+      url: `/todos/${params.todo}/toggle`,
       method: 'post',
     }),
     destroy: (params: TodosDestroyParams): RouteConfig => ({
-      url: `/todos/${params.id}`,
+      url: `/todos/${params.todo}`,
       method: 'delete',
     }),
   },
@@ -323,12 +305,12 @@ import { controllers } from '../../types/routes'
 
 export default function TodoIndex({ todos }: TodoIndexProps) {
   const toggleTodo = (id: number) => {
-    router.visit(controllers.todos.toggle({ id: String(id) }))
+    router.visit(controllers.todos.toggle({ todo: String(id) }))
   }
 
   const deleteTodo = (id: number) => {
     if (confirm('Are you sure?')) {
-      router.visit(controllers.todos.destroy({ id: String(id) }))
+      router.visit(controllers.todos.destroy({ todo: String(id) }))
     }
   }
 
@@ -368,7 +350,7 @@ export default function TodoIndex({ todos }: TodoIndexProps) {
                 {todo.title}
               </span>
               <Link
-                href={controllers.todos.edit({ id: String(todo.id) })}
+                href={controllers.todos.edit({ todo: String(todo.id) })}
                 className="text-blue-500 hover:underline"
               >
                 Edit
@@ -462,7 +444,7 @@ export default function TodoEdit({ todo }: TodoFormProps) {
       <h1 className="text-2xl font-bold mb-6">Edit Todo</h1>
 
       {/* Type-safe route with path params */}
-      <Form action={controllers.todos.update({ id: String(todo.id) })} className="space-y-4">
+      <Form action={controllers.todos.update({ todo: String(todo.id) })} className="space-y-4">
         {({ processing }) => (
           <>
             <div>

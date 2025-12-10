@@ -13,10 +13,10 @@ A REST API with these endpoints:
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/api/todos` | List all todos |
-| GET | `/api/todos/:id` | Get a single todo |
+| GET | `/api/todos/{todo}` | Get a single todo |
 | POST | `/api/todos` | Create a todo |
-| PUT | `/api/todos/:id` | Update a todo |
-| DELETE | `/api/todos/:id` | Delete a todo |
+| PUT | `/api/todos/{todo}` | Update a todo |
+| DELETE | `/api/todos/{todo}` | Delete a todo |
 
 ## Prerequisites
 
@@ -148,19 +148,10 @@ pub async fn index(_req: Request) -> Response {
     }
 }
 
-// GET /api/todos/:id
+// GET /api/todos/{todo} - Route model binding automatically fetches the todo
 #[handler]
-pub async fn show(req: Request) -> Response {
-    let id: i32 = match req.param("id").unwrap().parse() {
-        Ok(id) => id,
-        Err(_) => return json_response!({"error": "Invalid ID"}, 400),
-    };
-
-    match Todos::find_by_pk(id).await {
-        Ok(Some(todo)) => json_response!({"data": todo}),
-        Ok(None) => json_response!({"error": "Todo not found"}, 404),
-        Err(e) => json_response!({"error": e.to_string()}, 500),
-    }
+pub async fn show(todo: Todo) -> Response {
+    json_response!({"data": todo})
 }
 
 // POST /api/todos
@@ -187,23 +178,10 @@ pub async fn store(form: CreateTodoRequest) -> Response {
     }
 }
 
-// PUT /api/todos/:id
+// PUT /api/todos/{todo} - Route model binding automatically fetches the todo
 #[handler]
-pub async fn update(req: Request, form: UpdateTodoRequest) -> Response {
-    let id: i32 = match req.param("id").unwrap().parse() {
-        Ok(id) => id,
-        Err(_) => return json_response!({"error": "Invalid ID"}, 400),
-    };
-
-    // Find existing todo
-    let existing = match Todos::find_by_pk(id).await {
-        Ok(Some(todo)) => todo,
-        Ok(None) => return json_response!({"error": "Todo not found"}, 404),
-        Err(e) => return json_response!({"error": e.to_string()}, 500),
-    };
-
-    // Update fields
-    let mut active: ActiveModel = existing.into();
+pub async fn update(todo: Todo, form: UpdateTodoRequest) -> Response {
+    let mut active: ActiveModel = todo.into();
 
     if let Some(title) = form.title {
         active.title = Set(title);
@@ -222,22 +200,11 @@ pub async fn update(req: Request, form: UpdateTodoRequest) -> Response {
     }
 }
 
-// DELETE /api/todos/:id
+// DELETE /api/todos/{todo} - Route model binding automatically fetches the todo
 #[handler]
-pub async fn destroy(req: Request) -> Response {
-    let id: i32 = match req.param("id").unwrap().parse() {
-        Ok(id) => id,
-        Err(_) => return json_response!({"error": "Invalid ID"}, 400),
-    };
-
-    match Todos::delete_by_pk(id).await {
-        Ok(result) => {
-            if result.rows_affected > 0 {
-                json_response!({"message": "Todo deleted"})
-            } else {
-                json_response!({"error": "Todo not found"}, 404)
-            }
-        }
+pub async fn destroy(todo: Todo) -> Response {
+    match Todos::delete_by_pk(todo.id).await {
+        Ok(_) => json_response!({"message": "Todo deleted"}),
         Err(e) => json_response!({"error": e.to_string()}, 500),
     }
 }
@@ -255,10 +222,10 @@ pub fn routes() -> Vec<kit::Route> {
     routes![
         // API Routes
         get "/api/todos" => todos::index,
-        get "/api/todos/{id}" => todos::show,
+        get "/api/todos/{todo}" => todos::show,
         post "/api/todos" => todos::store,
-        put "/api/todos/{id}" => todos::update,
-        delete "/api/todos/{id}" => todos::destroy,
+        put "/api/todos/{todo}" => todos::update,
+        delete "/api/todos/{todo}" => todos::destroy,
     ]
 }
 ```
@@ -313,12 +280,14 @@ Response:
 ### Get a Single Todo
 
 ```bash
+# {todo} is the todo ID - Kit automatically fetches the model
 curl http://localhost:8080/api/todos/1
 ```
 
 ### Update a Todo
 
 ```bash
+# {todo} is the todo ID - Kit automatically fetches the model
 curl -X PUT http://localhost:8080/api/todos/1 \
   -H "Content-Type: application/json" \
   -d '{"completed": true}'
@@ -327,6 +296,7 @@ curl -X PUT http://localhost:8080/api/todos/1 \
 ### Delete a Todo
 
 ```bash
+# {todo} is the todo ID - Kit automatically fetches the model
 curl -X DELETE http://localhost:8080/api/todos/1
 ```
 
