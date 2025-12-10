@@ -16,12 +16,12 @@ use kit::{get, post, put, delete, routes};
 use crate::controllers;
 
 routes! {
-    get("/", controllers::home::index).name("home"),
-    get("/users", controllers::user::index).name("users.index"),
-    get("/users/{id}", controllers::user::show).name("users.show"),
-    post("/users", controllers::user::store).name("users.store"),
-    put("/users/{id}", controllers::user::update).name("users.update"),
-    delete("/users/{id}", controllers::user::destroy).name("users.destroy"),
+    get!("/", controllers::home::index).name("home"),
+    get!("/users", controllers::user::index).name("users.index"),
+    get!("/users/{id}", controllers::user::show).name("users.show"),
+    post!("/users", controllers::user::store).name("users.store"),
+    put!("/users/{id}", controllers::user::update).name("users.update"),
+    delete!("/users/{id}", controllers::user::destroy).name("users.destroy"),
 }
 ```
 
@@ -29,21 +29,21 @@ The `routes!` macro automatically generates a `register()` function that returns
 
 ## HTTP Methods
 
-Kit provides helper functions for all standard HTTP methods:
+Kit provides macros for all standard HTTP methods:
 
-| Method | Function | Usage |
-|--------|----------|-------|
-| GET | `get(path, handler)` | Retrieve resources |
-| POST | `post(path, handler)` | Create resources |
-| PUT | `put(path, handler)` | Update resources |
-| DELETE | `delete(path, handler)` | Delete resources |
+| Method | Macro | Usage |
+|--------|-------|-------|
+| GET | `get!(path, handler)` | Retrieve resources |
+| POST | `post!(path, handler)` | Create resources |
+| PUT | `put!(path, handler)` | Update resources |
+| DELETE | `delete!(path, handler)` | Delete resources |
 
 ```rust
 routes! {
-    get("/articles", controllers::article::index),
-    post("/articles", controllers::article::store),
-    put("/articles/{id}", controllers::article::update),
-    delete("/articles/{id}", controllers::article::destroy),
+    get!("/articles", controllers::article::index),
+    post!("/articles", controllers::article::store),
+    put!("/articles/{id}", controllers::article::update),
+    delete!("/articles/{id}", controllers::article::destroy),
 }
 ```
 
@@ -53,8 +53,8 @@ Dynamic segments in your URLs are defined using curly braces `{param}`. These pa
 
 ```rust
 // Route definition
-get("/users/{id}", controllers::user::show).name("users.show"),
-get("/posts/{post_id}/comments/{comment_id}", controllers::comment::show),
+get!("/users/{id}", controllers::user::show).name("users.show"),
+get!("/posts/{post_id}/comments/{comment_id}", controllers::comment::show),
 ```
 
 Access parameters in your controller using `request.param()`:
@@ -119,9 +119,9 @@ use kit::{get, put, delete, routes};
 use crate::controllers;
 
 routes! {
-    get("/users/{user}", controllers::user::show).name("users.show"),
-    put("/users/{user}", controllers::user::update).name("users.update"),
-    delete("/users/{user}", controllers::user::destroy).name("users.destroy"),
+    get!("/users/{user}", controllers::user::show).name("users.show"),
+    put!("/users/{user}", controllers::user::update).name("users.update"),
+    delete!("/users/{user}", controllers::user::destroy).name("users.destroy"),
 }
 ```
 
@@ -199,10 +199,10 @@ Named routes allow you to generate URLs without hardcoding paths. Use `.name()` 
 
 ```rust
 routes! {
-    get("/", controllers::home::index).name("home"),
-    get("/users", controllers::user::index).name("users.index"),
-    get("/users/{id}", controllers::user::show).name("users.show"),
-    post("/users", controllers::user::store).name("users.store"),
+    get!("/", controllers::home::index).name("home"),
+    get!("/users", controllers::user::index).name("users.index"),
+    get!("/users/{id}", controllers::user::show).name("users.show"),
+    post!("/users", controllers::user::store).name("users.store"),
 }
 ```
 
@@ -263,15 +263,15 @@ use crate::middleware::AuthMiddleware;
 
 routes! {
     // Public routes
-    get("/", controllers::home::index).name("home"),
-    get("/login", controllers::auth::login_form).name("login"),
-    post("/login", controllers::auth::login).name("login.submit"),
+    get!("/", controllers::home::index).name("home"),
+    get!("/login", controllers::auth::login_form).name("login"),
+    post!("/login", controllers::auth::login).name("login.submit"),
 
     // Protected routes
-    get("/dashboard", controllers::dashboard::index)
+    get!("/dashboard", controllers::dashboard::index)
         .name("dashboard")
         .middleware(AuthMiddleware),
-    get("/profile", controllers::user::profile)
+    get!("/profile", controllers::user::profile)
         .name("profile")
         .middleware(AuthMiddleware),
 }
@@ -280,7 +280,7 @@ routes! {
 You can chain multiple middleware on a single route:
 
 ```rust
-get("/admin", controllers::admin::index)
+get!("/admin", controllers::admin::index)
     .middleware(AuthMiddleware)
     .middleware(AdminMiddleware),
 ```
@@ -300,20 +300,20 @@ use crate::middleware::{AuthMiddleware, ApiMiddleware};
 
 routes! {
     // Public routes
-    get("/", controllers::home::index).name("home"),
-    get("/login", controllers::auth::login_form).name("login"),
+    get!("/", controllers::home::index).name("home"),
+    get!("/login", controllers::auth::login_form).name("login"),
 
     // API routes with shared prefix
     group!("/api", {
-        get("/users", controllers::api::user::index).name("api.users.index"),   // GET /api/users
-        post("/users", controllers::api::user::store).name("api.users.store"),  // POST /api/users
-        get("/users/{id}", controllers::api::user::show).name("api.users.show"), // GET /api/users/{id}
+        get!("/users", controllers::api::user::index).name("api.users.index"),   // GET /api/users
+        post!("/users", controllers::api::user::store).name("api.users.store"),  // POST /api/users
+        get!("/users/{id}", controllers::api::user::show).name("api.users.show"), // GET /api/users/{id}
     }).middleware(ApiMiddleware),
 
     // Admin routes with auth middleware
     group!("/admin", {
-        get("/dashboard", controllers::admin::dashboard).name("admin.dashboard"), // GET /admin/dashboard
-        get("/settings", controllers::admin::settings).name("admin.settings"),   // GET /admin/settings
+        get!("/dashboard", controllers::admin::dashboard).name("admin.dashboard"), // GET /admin/dashboard
+        get!("/settings", controllers::admin::settings).name("admin.settings"),   // GET /admin/settings
     }).middleware(AuthMiddleware),
 }
 ```
@@ -324,8 +324,8 @@ The `group!` macro takes a prefix and a block of routes:
 
 ```rust
 group!("/prefix", {
-    get("/path", handler).name("route.name"),
-    post("/path", handler),
+    get!("/path", handler).name("route.name"),
+    post!("/path", handler),
     // ... more routes
 })
 ```
@@ -336,8 +336,8 @@ Apply middleware to all routes in a group using `.middleware()`:
 
 ```rust
 group!("/protected", {
-    get("", controllers::dashboard::index).name("dashboard"),
-    get("/settings", controllers::settings::index).name("settings"),
+    get!("/", controllers::dashboard::index).name("dashboard"),
+    get!("/settings", controllers::settings::index).name("settings"),
 }).middleware(AuthMiddleware)
 ```
 
@@ -347,8 +347,8 @@ Chain multiple middleware on a group:
 
 ```rust
 group!("/api/v2", {
-    get("/users", controllers::api::user::index),
-    post("/users", controllers::api::user::store),
+    get!("/users", controllers::api::user::index),
+    post!("/users", controllers::api::user::store),
 }).middleware(AuthMiddleware).middleware(RateLimitMiddleware)
 ```
 
@@ -358,9 +358,9 @@ Groups can be used purely for URL prefixing without any middleware:
 
 ```rust
 group!("/users", {
-    get("", controllers::user::index).name("users.index"),       // GET /users
-    get("/{id}", controllers::user::show).name("users.show"),    // GET /users/{id}
-    post("", controllers::user::store).name("users.store"),      // POST /users
+    get!("/", controllers::user::index).name("users.index"),       // GET /users
+    get!("/{id}", controllers::user::show).name("users.show"),    // GET /users/{id}
+    post!("/", controllers::user::store).name("users.store"),      // POST /users
 }),
 ```
 
@@ -398,19 +398,19 @@ use crate::controllers;
 use crate::middleware::AuthMiddleware;
 
 routes! {
-    get("/", controllers::home::index).name("home"),
+    get!("/", controllers::home::index).name("home"),
 
     // User routes with shared prefix
     group!("/users", {
-        get("", controllers::user::index).name("users.index"),
-        get("/{id}", controllers::user::show).name("users.show"),
-        post("", controllers::user::store).name("users.store"),
+        get!("/", controllers::user::index).name("users.index"),
+        get!("/{id}", controllers::user::show).name("users.show"),
+        post!("/", controllers::user::store).name("users.store"),
     }),
 
     // Protected routes with middleware
     group!("/dashboard", {
-        get("", controllers::home::dashboard).name("dashboard"),
-        get("/settings", controllers::settings::index).name("dashboard.settings"),
+        get!("/", controllers::home::dashboard).name("dashboard"),
+        get!("/settings", controllers::settings::index).name("dashboard.settings"),
     }).middleware(AuthMiddleware),
 }
 ```
@@ -420,10 +420,10 @@ routes! {
 | Feature | Syntax | Description |
 |---------|--------|-------------|
 | Define routes | `routes! { ... }` | Macro for clean route definitions |
-| GET route | `get(path, handler)` | Handle GET requests |
-| POST route | `post(path, handler)` | Handle POST requests |
-| PUT route | `put(path, handler)` | Handle PUT requests |
-| DELETE route | `delete(path, handler)` | Handle DELETE requests |
+| GET route | `get!(path, handler)` | Handle GET requests |
+| POST route | `post!(path, handler)` | Handle POST requests |
+| PUT route | `put!(path, handler)` | Handle PUT requests |
+| DELETE route | `delete!(path, handler)` | Handle DELETE requests |
 | Route parameter | `/users/{id}` | Dynamic URL segment |
 | Access parameter | `request.param("id")` | Get parameter value |
 | Model binding | `user: user::Model` | Auto-fetch model from DB |

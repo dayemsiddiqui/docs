@@ -190,17 +190,17 @@ pub async fn destroy(todo: Todo) -> Response {
 Edit `src/routes.rs`:
 
 ```rust
-use kit::routes;
+use kit::{get, post, put, delete, routes};
 use crate::controllers::todos;
 
 routes! {
-    get("/todos", todos::index).name("todos.index"),
-    get("/todos/create", todos::create).name("todos.create"),
-    post("/todos", todos::store).name("todos.store"),
-    get("/todos/{todo}/edit", todos::edit).name("todos.edit"),
-    put("/todos/{todo}", todos::update).name("todos.update"),
-    post("/todos/{todo}/toggle", todos::toggle).name("todos.toggle"),
-    delete("/todos/{todo}", todos::destroy).name("todos.destroy"),
+    get!("/todos", todos::index).name("todos.index"),
+    get!("/todos/create", todos::create).name("todos.create"),
+    post!("/todos", todos::store).name("todos.store"),
+    get!("/todos/{todo}/edit", todos::edit).name("todos.edit"),
+    put!("/todos/{todo}", todos::update).name("todos.update"),
+    post!("/todos/{todo}/toggle", todos::toggle).name("todos.toggle"),
+    delete!("/todos/{todo}", todos::destroy).name("todos.destroy"),
 }
 ```
 

@@ -93,7 +93,7 @@ Declare path parameters as function arguments with primitive types:
 ```rust
 use kit::{handler, json_response, Response};
 
-// Route: get("/users/{id}", controllers::user::show)
+// Route: get!("/users/{id}", controllers::user::show)
 #[handler]
 pub async fn show(id: i32) -> Response {
     json_response!({
@@ -101,7 +101,7 @@ pub async fn show(id: i32) -> Response {
     })
 }
 
-// Route: get("/posts/{slug}", controllers::post::show)
+// Route: get!("/posts/{slug}", controllers::post::show)
 #[handler]
 pub async fn show_by_slug(slug: String) -> Response {
     json_response!({
@@ -115,7 +115,7 @@ pub async fn show_by_slug(slug: String) -> Response {
 Extract multiple parameters in a single handler:
 
 ```rust
-// Route: get("/posts/{post_id}/comments/{comment_id}", handler)
+// Route: get!("/posts/{post_id}/comments/{comment_id}", handler)
 #[handler]
 pub async fn show_comment(post_id: i32, comment_id: i32) -> Response {
     json_response!({
@@ -174,7 +174,7 @@ Now you can directly accept the model as a handler parameter:
 use kit::{handler, json_response, Response};
 use crate::models::user;
 
-// Route: get("/users/{user}", controllers::user::show)
+// Route: get!("/users/{user}", controllers::user::show)
 #[handler]
 pub async fn show(user: user::Model) -> Response {
     // user is automatically fetched from the database
@@ -196,7 +196,7 @@ use kit::{handler, json_response, Response};
 use crate::models::user;
 use crate::requests::UpdateUserRequest;
 
-// Route: put("/users/{user}", controllers::user::update)
+// Route: put!("/users/{user}", controllers::user::update)
 #[handler]
 pub async fn update(user: user::Model, form: UpdateUserRequest) -> Response {
     // user: auto-fetched from database (404 if not found)
@@ -260,7 +260,7 @@ Access dynamic URL segments defined in your routes:
 ```rust
 use kit::{Request, Response, json_response};
 
-// Route: get("/users/{id}", controllers::user::show)
+// Route: get!("/users/{id}", controllers::user::show)
 pub async fn show(req: Request) -> Response {
     // Using ? operator - returns 400 error if param missing
     let id = req.param("id")?;
@@ -274,7 +274,7 @@ pub async fn show(req: Request) -> Response {
 For routes with multiple parameters:
 
 ```rust
-// Route: get("/posts/{post_id}/comments/{comment_id}", handler)
+// Route: get!("/posts/{post_id}/comments/{comment_id}", handler)
 pub async fn show_comment(req: Request) -> Response {
     let post_id = req.param("post_id")?;
     let comment_id = req.param("comment_id")?;
@@ -428,11 +428,11 @@ use kit::{get, post, put, delete, routes};
 use crate::controllers;
 
 routes! {
-    get("/users", controllers::user::index).name("users.index"),
-    get("/users/{id}", controllers::user::show).name("users.show"),
-    post("/users", controllers::user::store).name("users.store"),
-    put("/users/{id}", controllers::user::update).name("users.update"),
-    delete("/users/{id}", controllers::user::destroy).name("users.destroy"),
+    get!("/users", controllers::user::index).name("users.index"),
+    get!("/users/{id}", controllers::user::show).name("users.show"),
+    post!("/users", controllers::user::store).name("users.store"),
+    put!("/users/{id}", controllers::user::update).name("users.update"),
+    delete!("/users/{id}", controllers::user::destroy).name("users.destroy"),
 }
 ```
 

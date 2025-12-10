@@ -157,12 +157,12 @@ use crate::controllers;
 use crate::middleware::AuthMiddleware;
 
 routes! {
-    get("/", controllers::home::index).name("home"),
-    get("/public", controllers::home::public),
+    get!("/", controllers::home::index).name("home"),
+    get!("/public", controllers::home::public),
 
     // Protected route - requires AuthMiddleware
-    get("/protected", controllers::dashboard::index).middleware(AuthMiddleware),
-    get("/admin", controllers::admin::index).middleware(AuthMiddleware),
+    get!("/protected", controllers::dashboard::index).middleware(AuthMiddleware),
+    get!("/admin", controllers::admin::index).middleware(AuthMiddleware),
 }
 ```
 

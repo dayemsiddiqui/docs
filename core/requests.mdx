@@ -230,8 +230,8 @@ use kit::{get, post, routes};
 use crate::controllers;
 
 routes! {
-    get("/users", controllers::user::index).name("users.index"),
-    post("/users", controllers::user::store).name("users.store"),
+    get!("/users", controllers::user::index).name("users.index"),
+    post!("/users", controllers::user::store).name("users.store"),
 }
 ```
 
