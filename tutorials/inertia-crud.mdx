@@ -118,8 +118,13 @@ pub struct TodoFormProps {
     pub todo: Option<Todo>,
 }
 
-#[derive(Deserialize)]
+// FormRequest for creating/updating todos with validation
+use kit::{form_request, InertiaProps};
+
+#[form_request]
+#[derive(InertiaProps)]
 pub struct TodoRequest {
+    #[validate(length(min = 1, message = "Title is required"))]
     pub title: String,
 }
 
@@ -157,12 +162,14 @@ pub async fn create(_req: Request) -> Response {
     inertia_response!("Todos/Create", TodoFormProps { todo: None })
 }
 
-// POST /todos
-pub async fn store(req: Request) -> Response {
-    let body: TodoRequest = req.json().await.unwrap();
+// POST /todos - Uses FormRequest for automatic validation
+use kit::handler;
 
+#[handler]
+pub async fn store(form: TodoRequest) -> Response {
+    // `form` is already validated - returns 422 if validation fails
     let new_todo = ActiveModel {
-        title: Set(body.title),
+        title: Set(form.title),
         completed: Set(false),
         created_at: Set(chrono::Utc::now().naive_utc()),
         ..Default::default()
@@ -264,6 +271,11 @@ export interface TodoIndexProps {
 
 export interface TodoFormProps {
   todo: Todo | null
+}
+
+// FormRequest type for type-safe forms
+export interface TodoRequest {
+  title: string
 }
 ```
 
@@ -378,9 +390,11 @@ Create `frontend/src/pages/Todos/Create.tsx`:
 
 ```tsx
 import { Link, useForm } from '@inertiajs/react'
+import type { TodoRequest } from '../../types/inertia-props'
 
 export default function TodoCreate() {
-  const { data, setData, post, processing, errors } = useForm({
+  // Type-safe form using the generated TodoRequest type
+  const { data, setData, post, processing, errors } = useForm<TodoRequest>({
     title: '',
   })
 
@@ -433,10 +447,11 @@ Create `frontend/src/pages/Todos/Edit.tsx`:
 
 ```tsx
 import { Link, useForm } from '@inertiajs/react'
-import type { TodoFormProps } from '../../types/inertia-props'
+import type { TodoFormProps, TodoRequest } from '../../types/inertia-props'
 
 export default function TodoEdit({ todo }: TodoFormProps) {
-  const { data, setData, put, processing, errors } = useForm({
+  // Type-safe form using the generated TodoRequest type
+  const { data, setData, put, processing, errors } = useForm<TodoRequest>({
     title: todo?.title || '',
   })
 

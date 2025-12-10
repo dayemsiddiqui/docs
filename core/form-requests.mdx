@@ -341,6 +341,106 @@ pub use create_user::CreateUserRequest;
 pub use update_user::UpdateUserRequest;
 ```
 
+## End-to-End Type Safety with Inertia
+
+FormRequests can also derive `InertiaProps` to generate TypeScript types, enabling end-to-end type safety from your Rust backend to your React frontend.
+
+### Generating TypeScript Types for FormRequests
+
+Add `InertiaProps` derive alongside `#[form_request]`:
+
+```rust
+use kit::{form_request, InertiaProps};
+
+#[form_request]
+#[derive(InertiaProps)]
+pub struct CreateTodoRequest {
+    #[validate(length(min = 1, message = "Title is required"))]
+    pub title: String,
+
+    #[validate(length(max = 500))]
+    pub description: Option<String>,
+}
+```
+
+Run type generation:
+
+```bash
+kit generate-types
+```
+
+This generates TypeScript types in `frontend/src/types/inertia-props.ts`:
+
+```typescript
+export interface CreateTodoRequest {
+  title: string
+  description: string | null
+}
+```
+
+### Type-Safe Forms with useForm
+
+Use the generated type with Inertia's `useForm` hook for full type safety:
+
+```tsx
+import { useForm } from '@inertiajs/react'
+import type { CreateTodoRequest } from '../types/inertia-props'
+
+export default function CreateTodo() {
+  // Full type safety - TypeScript knows the shape of your form data
+  const { data, setData, post, processing, errors } = useForm<CreateTodoRequest>({
+    title: '',
+    description: null,
+  })
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    post('/todos')
+  }
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <input
+        type="text"
+        value={data.title}
+        onChange={(e) => setData('title', e.target.value)} // Type-safe!
+        placeholder="Todo title"
+      />
+      {errors.title && <span className="error">{errors.title}</span>}
+
+      <textarea
+        value={data.description || ''}
+        onChange={(e) => setData('description', e.target.value || null)}
+        placeholder="Description (optional)"
+      />
+
+      <button type="submit" disabled={processing}>
+        Create Todo
+      </button>
+    </form>
+  )
+}
+```
+
+### Benefits of End-to-End Type Safety
+
+1. **Compile-time checks**: TypeScript catches field name typos and type mismatches
+2. **IDE autocomplete**: Full IntelliSense for form fields in your editor
+3. **Validation alignment**: Your TypeScript types match your Rust validation rules
+4. **Refactoring safety**: Rename a field in Rust, TypeScript errors show where to update
+
+### Workflow
+
+1. Define FormRequest with validation in Rust
+2. Add `#[derive(InertiaProps)]` to the struct
+3. Run `kit generate-types` to generate TypeScript
+4. Use the generated type with `useForm<FormRequestType>`
+5. Get full type safety and validation error handling
+
+<Note>
+For more information on TypeScript type generation, see [TypeScript Types](/frontend/typescript-types).
+</Note>
+
 ## Summary
 
 | Feature | Description |
@@ -352,3 +452,5 @@ pub use update_user::UpdateUserRequest;
 | Error format | Laravel/Inertia-compatible 422 JSON |
 | Authorization | Override `authorize()` method |
 | Auto content-type | Detects JSON vs form-urlencoded |
+| TypeScript types | Add `#[derive(InertiaProps)]` for type generation |
+| Type-safe forms | Use generated types with `useForm<T>` |

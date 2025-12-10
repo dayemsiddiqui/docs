@@ -254,6 +254,104 @@ export default function TodoList({ todos, filter, total_count }: TodoListProps) 
 }
 ```
 
+## FormRequest Types for Type-Safe Forms
+
+FormRequests can also generate TypeScript types, enabling end-to-end type safety for form submissions.
+
+### Generating FormRequest Types
+
+Add `#[derive(InertiaProps)]` to your FormRequest structs:
+
+```rust
+use kit::{form_request, InertiaProps};
+
+#[form_request]
+#[derive(InertiaProps)]
+pub struct CreateUserRequest {
+    #[validate(email(message = "Invalid email"))]
+    pub email: String,
+
+    #[validate(length(min = 8, message = "Password must be at least 8 characters"))]
+    pub password: String,
+
+    #[validate(length(min = 1, max = 100))]
+    pub name: String,
+}
+```
+
+Run `kit generate-types` to generate:
+
+```typescript
+export interface CreateUserRequest {
+  email: string
+  password: string
+  name: string
+}
+```
+
+### Type-Safe useForm
+
+Use the generated type with Inertia's `useForm` hook:
+
+```tsx
+import { useForm } from '@inertiajs/react'
+import type { CreateUserRequest } from '../types/inertia-props'
+
+export default function Register() {
+  // Full type safety for form data
+  const { data, setData, post, processing, errors } = useForm<CreateUserRequest>({
+    email: '',
+    password: '',
+    name: '',
+  })
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    post('/register')
+  }
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <input
+        type="email"
+        value={data.email}
+        onChange={(e) => setData('email', e.target.value)} // Type-safe!
+      />
+      {errors.email && <span>{errors.email}</span>}
+
+      <input
+        type="password"
+        value={data.password}
+        onChange={(e) => setData('password', e.target.value)}
+      />
+      {errors.password && <span>{errors.password}</span>}
+
+      <input
+        type="text"
+        value={data.name}
+        onChange={(e) => setData('name', e.target.value)}
+      />
+      {errors.name && <span>{errors.name}</span>}
+
+      <button type="submit" disabled={processing}>
+        Register
+      </button>
+    </form>
+  )
+}
+```
+
+### Benefits
+
+- **Field name autocomplete**: TypeScript suggests valid field names
+- **Type checking**: Catch type mismatches at compile time
+- **Validation alignment**: TypeScript types match Rust validation rules
+- **Error handling**: The `errors` object has matching field keys
+
+<Note>
+For more information on FormRequests and validation, see [Form Requests](/core/form-requests).
+</Note>
+
 ## Troubleshooting
 
 ### Types Not Updating
