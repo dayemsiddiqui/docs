@@ -82,6 +82,117 @@ pub async fn show(request: Request) -> Response {
 }
 ```
 
+## Route Model Binding
+
+Route model binding automatically resolves database models from route parameters. When you use a Model type as a handler parameter, Kit automatically fetches the model from the database using the route parameter value.
+
+### Basic Usage
+
+Simply use the Model type as a handler parameter with the `#[handler]` attribute:
+
+```rust
+// src/controllers/user.rs
+use kit::{handler, json_response, Response};
+use crate::models::user;
+
+// Route: GET /users/{user}
+#[handler]
+pub async fn show(user: user::Model) -> Response {
+    json_response!({ "name": user.name, "email": user.email })
+}
+```
+
+The parameter name (`user`) matches the route parameter placeholder (`{user}`). Kit will:
+1. Extract the value from the `{user}` route parameter
+2. Parse it as the primary key type (e.g., `i32`, `String`, `UUID`)
+3. Fetch the model from the database
+4. Return 404 Not Found if the model doesn't exist
+5. Return 400 Bad Request if the parameter can't be parsed
+
+### Route Definition
+
+Define your route with a matching parameter name:
+
+```rust
+// src/routes.rs
+use kit::{get, put, delete, routes};
+use crate::controllers;
+
+routes! {
+    get("/users/{user}", controllers::user::show).name("users.show"),
+    put("/users/{user}", controllers::user::update).name("users.update"),
+    delete("/users/{user}", controllers::user::destroy).name("users.destroy"),
+}
+```
+
+### Multiple Models
+
+You can bind multiple models in a single handler:
+
+```rust
+// Route: GET /posts/{post}/comments/{comment}
+#[handler]
+pub async fn show(post: post::Model, comment: comment::Model) -> Response {
+    json_response!({
+        "post_title": post.title,
+        "comment_body": comment.body
+    })
+}
+```
+
+### Mixed Parameters
+
+Combine model binding with primitive parameters and form requests:
+
+```rust
+// Route: PUT /users/{user}
+#[handler]
+pub async fn update(user: user::Model, form: UpdateUserRequest) -> Response {
+    // user is automatically fetched from the database
+    // form contains validated request data
+    json_response!({ "updated": user.id })
+}
+```
+
+### Requirements
+
+Route model binding works automatically for any model whose Entity implements `kit::database::Model`:
+
+```rust
+// src/models/user.rs
+pub use super::entities::user::*;
+use sea_orm::entity::prelude::*;
+
+impl ActiveModelBehavior for ActiveModel {}
+
+// These trait implementations enable route model binding
+impl kit::database::Model for Entity {}
+impl kit::database::ModelMut for Entity {}
+```
+
+<Note>
+Route model binding supports any primary key type that implements `FromStr`, including `i32`, `i64`, `String`, and `uuid::Uuid`.
+</Note>
+
+### Opting Out
+
+If you don't want automatic model binding for a particular handler, simply don't use the Model type as a parameter. Instead, extract the ID and query manually:
+
+```rust
+#[handler]
+pub async fn show(id: i32) -> Response {
+    // Manual lookup with custom logic
+    let user = user::Entity::find_by_id(id)
+        .one(DB::connection()?.inner())
+        .await?;
+
+    match user {
+        Some(u) => json_response!({ "user": u }),
+        None => json_response!({ "error": "User not found" }),
+    }
+}
+```
+
 ## Named Routes
 
 Named routes allow you to generate URLs without hardcoding paths. Use `.name()` to assign a name to a route:
@@ -266,6 +377,7 @@ routes! {
 | DELETE route | `delete(path, handler)` | Handle DELETE requests |
 | Route parameter | `/users/{id}` | Dynamic URL segment |
 | Access parameter | `request.param("id")` | Get parameter value |
+| Model binding | `user: user::Model` | Auto-fetch model from DB |
 | Named route | `.name("users.show")` | Name for URL generation |
 | Generate URL | `route("name", &[...])` | Generate URL from name |
 | Route middleware | `.middleware(M)` | Apply middleware to route |

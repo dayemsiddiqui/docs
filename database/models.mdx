@@ -54,6 +54,10 @@ use kit::database::Model;
 use crate::models::todos::Entity as Todos;
 ```
 
+<Note>
+Implementing `kit::database::Model` also enables [Route Model Binding](/core/routing#route-model-binding), allowing you to use `Model` types directly as handler parameters for automatic database lookup.
+</Note>
+
 ### all()
 
 Retrieve all records from the table:
