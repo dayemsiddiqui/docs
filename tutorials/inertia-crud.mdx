@@ -254,7 +254,9 @@ pub fn routes() -> Vec<kit::Route> {
 kit generate-types
 ```
 
-This creates `frontend/src/types/inertia-props.ts` with:
+This creates two files for end-to-end type safety:
+
+### Props Types (`frontend/src/types/inertia-props.ts`)
 
 ```typescript
 export interface Todo {
@@ -279,6 +281,62 @@ export interface TodoRequest {
 }
 ```
 
+### Route Types (`frontend/src/types/routes.ts`)
+
+```typescript
+import type { Method } from '@inertiajs/core';
+
+export interface RouteConfig<TData = void> {
+  url: string;
+  method: Method;
+  data?: TData;
+}
+
+// Path parameter types
+export interface TodosToggleParams {
+  id: string;
+}
+
+export interface TodosEditParams {
+  id: string;
+}
+
+export interface TodosUpdateParams {
+  id: string;
+}
+
+export interface TodosDestroyParams {
+  id: string;
+}
+
+// Controller namespace - type-safe route helpers
+export const controllers = {
+  todos: {
+    index: (): RouteConfig => ({ url: '/todos', method: 'get' }),
+    create: (): RouteConfig => ({ url: '/todos/create', method: 'get' }),
+    store: (): RouteConfig => ({ url: '/todos', method: 'post' }),
+    edit: (params: TodosEditParams): RouteConfig => ({
+      url: `/todos/${params.id}/edit`,
+      method: 'get',
+    }),
+    update: (params: TodosUpdateParams): RouteConfig => ({
+      url: `/todos/${params.id}`,
+      method: 'put',
+    }),
+    toggle: (params: TodosToggleParams): RouteConfig => ({
+      url: `/todos/${params.id}/toggle`,
+      method: 'post',
+    }),
+    destroy: (params: TodosDestroyParams): RouteConfig => ({
+      url: `/todos/${params.id}`,
+      method: 'delete',
+    }),
+  },
+} as const;
+```
+
+Now you have full type safety from backend routes to frontend navigation!
+
 ## Step 5: Create React Components
 
 ### Index Page
@@ -288,15 +346,16 @@ Create `frontend/src/pages/Todos/Index.tsx`:
 ```tsx
 import { Link, router } from '@inertiajs/react'
 import type { TodoIndexProps } from '../../types/inertia-props'
+import { controllers } from '../../types/routes'
 
 export default function TodoIndex({ todos, filter }: TodoIndexProps) {
   const toggleTodo = (id: number) => {
-    router.post(`/todos/${id}/toggle`)
+    router.visit(controllers.todos.toggle({ id: String(id) }))
   }
 
   const deleteTodo = (id: number) => {
     if (confirm('Are you sure?')) {
-      router.delete(`/todos/${id}`)
+      router.visit(controllers.todos.destroy({ id: String(id) }))
     }
   }
 
@@ -305,7 +364,7 @@ export default function TodoIndex({ todos, filter }: TodoIndexProps) {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">My Todos</h1>
         <Link
-          href="/todos/create"
+          href={controllers.todos.create()}
           className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
         >
           Add Todo
@@ -315,7 +374,7 @@ export default function TodoIndex({ todos, filter }: TodoIndexProps) {
       {/* Filters */}
       <div className="flex gap-2 mb-6">
         <Link
-          href="/todos"
+          href={controllers.todos.index()}
           className={`px-3 py-1 rounded ${
             filter === 'all' ? 'bg-blue-500 text-white' : 'bg-gray-200'
           }`}
@@ -323,7 +382,7 @@ export default function TodoIndex({ todos, filter }: TodoIndexProps) {
           All
         </Link>
         <Link
-          href="/todos?filter=pending"
+          href={`${controllers.todos.index().url}?filter=pending`}
           className={`px-3 py-1 rounded ${
             filter === 'pending' ? 'bg-blue-500 text-white' : 'bg-gray-200'
           }`}
@@ -331,7 +390,7 @@ export default function TodoIndex({ todos, filter }: TodoIndexProps) {
           Pending
         </Link>
         <Link
-          href="/todos?filter=completed"
+          href={`${controllers.todos.index().url}?filter=completed`}
           className={`px-3 py-1 rounded ${
             filter === 'completed' ? 'bg-blue-500 text-white' : 'bg-gray-200'
           }`}
@@ -364,7 +423,7 @@ export default function TodoIndex({ todos, filter }: TodoIndexProps) {
                 {todo.title}
               </span>
               <Link
-                href={`/todos/${todo.id}/edit`}
+                href={controllers.todos.edit({ id: String(todo.id) })}
                 className="text-blue-500 hover:underline"
               >
                 Edit
@@ -390,6 +449,7 @@ Create `frontend/src/pages/Todos/Create.tsx`:
 
 ```tsx
 import { Form, Link, usePage } from '@inertiajs/react'
+import { controllers } from '../../types/routes'
 
 export default function TodoCreate() {
   const { errors } = usePage().props
@@ -398,7 +458,8 @@ export default function TodoCreate() {
     <div className="max-w-md mx-auto p-8">
       <h1 className="text-2xl font-bold mb-6">Create Todo</h1>
 
-      <Form action="/todos" method="post" className="space-y-4">
+      {/* Pass the route object directly - Inertia v2+ UrlMethodPair compatible */}
+      <Form action={controllers.todos.store()} className="space-y-4">
         {({ processing }) => (
           <>
             <div>
@@ -423,7 +484,7 @@ export default function TodoCreate() {
               >
                 {processing ? 'Creating...' : 'Create Todo'}
               </button>
-              <Link href="/todos" className="px-4 py-2 text-gray-600 hover:underline">
+              <Link href={controllers.todos.index()} className="px-4 py-2 text-gray-600 hover:underline">
                 Cancel
               </Link>
             </div>
@@ -442,6 +503,7 @@ Create `frontend/src/pages/Todos/Edit.tsx`:
 ```tsx
 import { Form, Link, usePage } from '@inertiajs/react'
 import type { TodoFormProps } from '../../types/inertia-props'
+import { controllers } from '../../types/routes'
 
 export default function TodoEdit({ todo }: TodoFormProps) {
   const { errors } = usePage().props
@@ -454,7 +516,8 @@ export default function TodoEdit({ todo }: TodoFormProps) {
     <div className="max-w-md mx-auto p-8">
       <h1 className="text-2xl font-bold mb-6">Edit Todo</h1>
 
-      <Form action={`/todos/${todo.id}`} method="put" className="space-y-4">
+      {/* Type-safe route with path params */}
+      <Form action={controllers.todos.update({ id: String(todo.id) })} className="space-y-4">
         {({ processing }) => (
           <>
             <div>
@@ -479,7 +542,7 @@ export default function TodoEdit({ todo }: TodoFormProps) {
               >
                 {processing ? 'Saving...' : 'Save Changes'}
               </button>
-              <Link href="/todos" className="px-4 py-2 text-gray-600 hover:underline">
+              <Link href={controllers.todos.index()} className="px-4 py-2 text-gray-600 hover:underline">
                 Cancel
               </Link>
             </div>
@@ -504,10 +567,11 @@ Visit `http://localhost:8080/todos` to see your todo app in action!
 ## How It Works
 
 1. **No API Layer**: The Rust backend returns Inertia responses directly to React components
-2. **Type Safety**: TypeScript types are generated from Rust structs
-3. **SPA Navigation**: Page transitions happen without full page reloads
-4. **Forms**: `<Form>` component handles form submission, validation errors, and loading states
-5. **Redirects**: After mutations, redirect to update the UI
+2. **End-to-End Type Safety**: TypeScript types are generated from Rust structs for both props AND routes
+3. **Type-Safe Routes**: No magic strings - `controllers.todos.toggle({ id })` instead of `'/todos/${id}/toggle'`
+4. **SPA Navigation**: Page transitions happen without full page reloads
+5. **Forms**: `<Form>` component accepts route objects directly (Inertia v2+ `UrlMethodPair` compatible)
+6. **Redirects**: After mutations, redirect to update the UI
 
 ## Key Inertia Features Used
 
@@ -515,19 +579,21 @@ Visit `http://localhost:8080/todos` to see your todo app in action!
 |---------|-------------|
 | `inertia_response!` | Return page with props |
 | `redirect()` | Navigate after mutations |
-| `<Link>` | SPA navigation |
-| `<Form>` | Declarative form handling |
-| `router.post/delete` | Programmatic mutations |
+| `<Link href={controllers.x.y()}>` | Type-safe SPA navigation |
+| `<Form action={controllers.x.y()}>` | Type-safe declarative form handling |
+| `router.visit(controllers.x.y())` | Type-safe programmatic navigation |
+| `controllers` object | Generated type-safe route helpers |
 
 ## Summary
 
-You've built a complete CRUD application:
+You've built a complete CRUD application with end-to-end type safety:
 
 - Database migrations and models
 - Server-side controllers with Inertia responses
 - React pages with type-safe props
-- Forms with validation feedback
-- Filtering and navigation
+- Type-safe routes with `controllers` object (no magic strings!)
+- Forms with `<Form>` component and validation feedback
+- Type-safe filtering and navigation
 
 ## Next Steps
 
