@@ -1,6 +1,7 @@
 ---
 title: Testing
 description: Write tests for your Kit application with database support
+icon: 'flask-conical'
 ---
 
 Kit provides testing utilities that make it easy to write tests for your actions, services, and controllers with full database support using in-memory SQLite.
@@ -77,16 +78,21 @@ async fn test_todo_list() {
 
 ## How It Works
 
-When you use `#[kit_test]` or `test_database!`:
+When you use `#[kit_test]`:
 
-1. **Fresh Database**: A new in-memory SQLite database is created for each test
-2. **Migrations Applied**: Your `crate::migrations::Migrator` runs automatically
-3. **Automatic Integration**: The test database is registered in the DI container, so any code using `DB::connection()` or `#[inject] db: Database` automatically uses the test database
-4. **Complete Isolation**: Each test is fully isolated - no data leaks between tests
+1. **Services Bootstrapped**: All services marked with `#[injectable]` are automatically registered, so `App::resolve::<T>()` works just like in production
+2. **Fresh Database**: A new in-memory SQLite database is created for each test
+3. **Migrations Applied**: Your `crate::migrations::Migrator` runs automatically
+4. **Automatic Integration**: The test database is registered in the DI container, so any code using `DB::connection()` or `#[inject] db: Database` automatically uses the test database
+5. **Complete Isolation**: Each test is fully isolated - no data leaks between tests
+
+<Note>
+The `#[kit_test]` macro calls `App::init()` and `App::boot_services()` before your test runs, ensuring all injectable services are available.
+</Note>
 
 ## Testing Actions
 
-Actions that use dependency injection work seamlessly:
+Actions marked with `#[injectable]` can be resolved from the container in tests:
 
 ```rust
 // Your action
@@ -106,11 +112,11 @@ impl CreateUserAction {
     }
 }
 
-// Your test
+// Your test - resolve the action from the container
 #[kit_test]
 async fn test_create_user(db: TestDatabase) {
-    // CreateUserAction automatically receives the test database
-    let action = CreateUserAction::new();
+    // Resolve the action from the DI container
+    let action = App::resolve::<CreateUserAction>().unwrap();
     let user = action.execute("test@example.com").await.unwrap();
 
     // Verify in database
