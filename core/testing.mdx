@@ -4,11 +4,28 @@ description: Write tests for your Kit application with database support
 icon: 'flask-conical'
 ---
 
-Kit provides testing utilities that make it easy to write tests for your actions, services, and controllers with full database support using in-memory SQLite.
+Kit provides testing utilities that make it easy to write tests for your actions, services, and controllers with full database support using in-memory SQLite. Kit also offers Jest-like testing macros for better test organization and clearer failure output.
 
 ## Quick Start
 
-The simplest way to write a test with database support:
+The simplest way to write a test with database support using Jest-like syntax:
+
+```rust
+use kit::{describe, test, expect};
+use kit::testing::TestDatabase;
+
+describe!("UserService", {
+    test!("creates a user successfully", async fn(db: TestDatabase) {
+        let action = App::resolve::<CreateUserAction>().unwrap();
+        let user = action.execute("test@example.com").await.unwrap();
+
+        expect!(user.id).to_be_greater_than(0);
+        expect!(user.email).to_equal("test@example.com".to_string());
+    });
+});
+```
+
+Or using the traditional attribute macro:
 
 ```rust
 use kit::kit_test;
@@ -23,9 +40,126 @@ async fn test_user_creation(db: TestDatabase) {
 }
 ```
 
-## Testing Approaches
+## Jest-like Testing (Recommended)
 
-Kit provides two ways to write database-enabled tests:
+Kit provides Jest-like macros for better test organization and clearer assertion output.
+
+### The `describe!` Macro
+
+Group related tests with descriptive names:
+
+```rust
+use kit::{describe, test, expect};
+use kit::testing::TestDatabase;
+
+describe!("ListTodosAction", {
+    test!("returns empty list when no todos exist", async fn(db: TestDatabase) {
+        let action = App::resolve::<ListTodosAction>().unwrap();
+        let todos = action.execute().await.unwrap();
+
+        expect!(todos).to_be_empty();
+    });
+
+    test!("returns all todos", async fn(db: TestDatabase) {
+        // Create test data
+        Todo::create().title("Test Todo".to_string()).save().await.unwrap();
+
+        let action = App::resolve::<ListTodosAction>().unwrap();
+        let todos = action.execute().await.unwrap();
+
+        expect!(todos).to_have_length(1);
+    });
+
+    // Nested describe blocks for sub-groups
+    describe!("with pagination", {
+        test!("returns first page", async fn(db: TestDatabase) {
+            // ...
+        });
+    });
+});
+```
+
+### The `test!` Macro
+
+Define individual test cases with three syntax options:
+
+```rust
+// Async test with database
+test!("creates a user", async fn(db: TestDatabase) {
+    let action = App::resolve::<CreateUserAction>().unwrap();
+    let user = action.execute("test@example.com").await.unwrap();
+    expect!(user.email).to_equal("test@example.com".to_string());
+});
+
+// Async test without database
+test!("calculates sum", async fn() {
+    let result = calculate(1, 2).await;
+    expect!(result).to_equal(3);
+});
+
+// Sync test
+test!("adds numbers", fn() {
+    expect!(1 + 1).to_equal(2);
+});
+```
+
+### The `expect!` Macro
+
+Fluent assertions with clear failure output:
+
+```rust
+// Equality
+expect!(actual).to_equal(expected);
+expect!(actual).to_not_equal(unexpected);
+
+// Boolean
+expect!(condition).to_be_true();
+expect!(condition).to_be_false();
+
+// Option
+expect!(option).to_be_some();
+expect!(option).to_be_none();
+
+// Result
+expect!(result).to_be_ok();
+expect!(result).to_be_err();
+
+// Strings
+expect!(string).to_contain("substring");
+expect!(string).to_start_with("prefix");
+expect!(string).to_end_with("suffix");
+expect!(string).to_have_length(10);
+expect!(string).to_be_empty();
+
+// Collections
+expect!(vec).to_have_length(3);
+expect!(vec).to_contain(&item);
+expect!(vec).to_be_empty();
+
+// Numeric comparisons
+expect!(10).to_be_greater_than(5);
+expect!(5).to_be_less_than(10);
+expect!(10).to_be_greater_than_or_equal(10);
+expect!(5).to_be_less_than_or_equal(5);
+```
+
+### Clear Failure Output
+
+When an assertion fails, you get clear output with the test name:
+
+```text
+Test: "creates a user"
+  at src/actions/user_action.rs:25
+
+  expect!(actual).to_equal(expected)
+
+  Expected: "test@example.com"
+  Received: "wrong@email.com"
+```
+
+## Testing Approaches (Traditional)
+
+Kit also provides traditional ways to write database-enabled tests:
 
 ### 1. Attribute Macro (Recommended)
 
