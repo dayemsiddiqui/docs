@@ -69,7 +69,8 @@
               "cli/new",
               "cli/serve",
               "cli/generators",
-              "cli/migrations"
+              "cli/migrations",
+              "cli/docker"
             ]
           }
         ]
