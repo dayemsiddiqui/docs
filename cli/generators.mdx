@@ -179,6 +179,82 @@ pub async fn show(req: Request) -> Response {
 
 ---
 
+## make:task
+
+Generate a new scheduled task for background processing.
+
+```bash
+kit make:task <name>
+```
+
+### Examples
+
+```bash
+kit make:task CleanupLogs
+kit make:task SendReminders
+kit make:task BackupDatabase
+```
+
+### Generated File
+
+```rust
+// src/tasks/cleanup_logs_task.rs
+use async_trait::async_trait;
+use kit::{CronExpression, FrameworkError, ScheduledTask};
+
+pub struct CleanupLogsTask;
+
+impl CleanupLogsTask {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+#[async_trait]
+impl ScheduledTask for CleanupLogsTask {
+    fn name(&self) -> &str {
+        "cleanup_logs_task"
+    }
+
+    fn schedule(&self) -> CronExpression {
+        CronExpression::daily()
+    }
+
+    async fn handle(&self) -> Result<(), FrameworkError> {
+        // TODO: Implement your task logic here
+        Ok(())
+    }
+}
+```
+
+### What It Does
+
+1. Creates `src/tasks/<name>.rs` with `ScheduledTask` trait implementation
+2. Creates or updates `src/tasks/mod.rs` to export the task
+3. Creates `src/schedule.rs` for registering tasks (if not exists)
+4. Creates `src/bin/schedule.rs` scheduler binary (if not exists)
+
+### Next Steps
+
+After generating, register your task in `src/schedule.rs`:
+
+```rust
+use crate::tasks;
+
+pub fn register(schedule: &mut Schedule) {
+    schedule.task(tasks::CleanupLogsTask::new());
+}
+```
+
+Then run the scheduler:
+
+```bash
+kit schedule:work  # Daemon mode
+kit schedule:run   # Run once
+```
+
+---
+
 ## make:inertia
 
 Generate an Inertia.js page component.
@@ -271,6 +347,7 @@ export interface UserPageProps {
 | `make:action <name>` | Action | `src/actions/` |
 | `make:middleware <name>` | Middleware | `src/middleware/` |
 | `make:error <name>` | Domain Error | `src/errors/` |
+| `make:task <name>` | Scheduled Task | `src/tasks/` |
 | `make:inertia <name>` | Page Component | `frontend/src/pages/` |
 | `make:migration <name>` | Migration | `migrations/` |
 | `generate-types` | TypeScript Types | `frontend/src/types/` |

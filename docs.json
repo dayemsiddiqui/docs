@@ -41,6 +41,7 @@
               "core/error-handling",
               "core/middleware",
               "core/cache",
+              "core/scheduling",
               "core/testing"
             ]
           },
@@ -70,6 +71,7 @@
               "cli/new",
               "cli/serve",
               "cli/generators",
+              "cli/scheduling",
               "cli/migrations",
               "cli/docker"
             ]
