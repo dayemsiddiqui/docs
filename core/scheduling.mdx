@@ -37,9 +37,11 @@ kit make:task BackupDatabaseTask
 //! CleanupLogsTask scheduled task
 
 use async_trait::async_trait;
-use kit::{CronExpression, FrameworkError, ScheduledTask};
+use kit::{Task, TaskResult};
 
 /// CleanupLogsTask - A scheduled task
+///
+/// Register this task in `src/schedule.rs` with the fluent API.
 pub struct CleanupLogsTask;
 
 impl CleanupLogsTask {
@@ -49,23 +51,11 @@ impl CleanupLogsTask {
 }
 
 #[async_trait]
-impl ScheduledTask for CleanupLogsTask {
-    fn name(&self) -> &str {
-        "cleanup_logs_task"
-    }
-
-    fn schedule(&self) -> CronExpression {
-        CronExpression::daily()
-    }
-
-    async fn handle(&self) -> Result<(), FrameworkError> {
+impl Task for CleanupLogsTask {
+    async fn handle(&self) -> TaskResult {
         // TODO: Implement your task logic here
         println!("Running CleanupLogsTask...");
         Ok(())
-    }
-
-    fn description(&self) -> Option<&str> {
-        Some("TODO: Add task description")
     }
 }
 ```
@@ -78,12 +68,12 @@ Kit supports two approaches for defining scheduled tasks:
 
 ### 1. Trait-Based Tasks (Recommended)
 
-For complex tasks that need dependencies or reusable logic, implement the `ScheduledTask` trait:
+For complex tasks that need dependencies or reusable logic, implement the `Task` trait and configure the schedule during registration:
 
 ```rust
 // src/tasks/cleanup_logs_task.rs
 use async_trait::async_trait;
-use kit::{CronExpression, FrameworkError, ScheduledTask, App, DB};
+use kit::{Task, TaskResult, DB};
 use crate::models::Log;
 
 pub struct CleanupLogsTask;
@@ -95,17 +85,8 @@ impl CleanupLogsTask {
 }
 
 #[async_trait]
-impl ScheduledTask for CleanupLogsTask {
-    fn name(&self) -> &str {
-        "cleanup:logs"
-    }
-
-    fn schedule(&self) -> CronExpression {
-        // Run daily at 3:00 AM
-        CronExpression::daily_at("03:00")
-    }
-
-    async fn handle(&self) -> Result<(), FrameworkError> {
+impl Task for CleanupLogsTask {
+    async fn handle(&self) -> TaskResult {
         // Access the database just like in controllers
         let db = DB::connection();
 
@@ -118,10 +99,24 @@ impl ScheduledTask for CleanupLogsTask {
         println!("Old logs cleaned up successfully");
         Ok(())
     }
+}
+```
 
-    fn description(&self) -> Option<&str> {
-        Some("Removes logs older than 30 days")
-    }
+Then register with fluent scheduling API in `src/schedule.rs`:
+
+```rust
+// src/schedule.rs
+use kit::Schedule;
+use crate::tasks::CleanupLogsTask;
+
+pub fn register(schedule: &mut Schedule) {
+    schedule.add(
+        schedule.task(CleanupLogsTask::new())
+            .daily()
+            .at("03:00")
+            .name("cleanup:logs")
+            .description("Removes logs older than 30 days")
+    );
 }
 ```
 
@@ -168,10 +163,31 @@ use kit::Schedule;
 use crate::tasks;
 
 pub fn register(schedule: &mut Schedule) {
-    // Trait-based tasks
-    schedule.task(tasks::CleanupLogsTask::new());
-    schedule.task(tasks::SendRemindersTask::new());
-    schedule.task(tasks::BackupDatabaseTask::new());
+    // Trait-based tasks with fluent schedule configuration
+    schedule.add(
+        schedule.task(tasks::CleanupLogsTask::new())
+            .daily()
+            .at("03:00")
+            .name("cleanup:logs")
+            .description("Removes logs older than 30 days")
+    );
+
+    schedule.add(
+        schedule.task(tasks::SendRemindersTask::new())
+            .daily()
+            .at("09:00")
+            .name("send:reminders")
+            .description("Sends daily reminder emails")
+    );
+
+    schedule.add(
+        schedule.task(tasks::BackupDatabaseTask::new())
+            .weekly()
+            .at("00:00")
+            .name("backup:database")
+            .description("Weekly database backup")
+            .without_overlapping()
+    );
 
     // Closure-based tasks
     schedule.add(
@@ -260,17 +276,12 @@ For full control, use cron syntax:
 Prevent a task from running if a previous instance is still executing:
 
 ```rust
-#[async_trait]
-impl ScheduledTask for LongRunningTask {
-    // ... other methods
-
-    fn without_overlapping(&self) -> bool {
-        true
-    }
-}
-
-// Or with closure
-.without_overlapping()
+schedule.add(
+    schedule.task(LongRunningTask::new())
+        .daily()
+        .name("long-task")
+        .without_overlapping()
+);
 ```
 
 ### Running in Background
@@ -278,17 +289,12 @@ impl ScheduledTask for LongRunningTask {
 Run tasks without waiting for completion:
 
 ```rust
-#[async_trait]
-impl ScheduledTask for BackgroundTask {
-    // ... other methods
-
-    fn run_in_background(&self) -> bool {
-        true
-    }
-}
-
-// Or with closure
-.run_in_background()
+schedule.add(
+    schedule.task(BackgroundTask::new())
+        .hourly()
+        .name("background-task")
+        .run_in_background()
+);
 ```
 
 ## Running the Scheduler
@@ -384,13 +390,15 @@ sudo systemctl start myapp-scheduler
 Scheduled tasks have full access to the application context, just like controllers:
 
 ```rust
-use kit::{App, DB};
+use kit::{App, Task, TaskResult, DB};
 use crate::actions::SendEmailAction;
 use crate::models::User;
 
+pub struct SendRemindersTask;
+
 #[async_trait]
-impl ScheduledTask for SendRemindersTask {
-    async fn handle(&self) -> Result<(), FrameworkError> {
+impl Task for SendRemindersTask {
+    async fn handle(&self) -> TaskResult {
         // Access database
         let users = User::query()
             .filter(User::reminder_enabled.eq(true))
@@ -444,9 +452,9 @@ pub use backup_database_task::BackupDatabaseTask;
 | Feature | Usage |
 |---------|-------|
 | Create task | `kit make:task TaskName` |
-| Trait-based | Implement `ScheduledTask` trait |
+| Trait-based | Implement `Task` trait, configure schedule during registration |
 | Closure-based | `schedule.call(\|\| async { ... })` |
-| Register tasks | Add to `src/schedule.rs` |
+| Register tasks | `schedule.add(schedule.task(...).daily().name("..."))` |
 | Run once | `kit schedule:run` |
 | Run daemon | `kit schedule:work` |
 | List tasks | `kit schedule:list` |
