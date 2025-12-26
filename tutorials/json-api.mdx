@@ -215,20 +215,20 @@ pub async fn destroy(todo: Todo) -> Response {
 Add the routes in `src/routes.rs`:
 
 ```rust
-use kit::routes;
+use kit::{routes, get, post, put, delete};
 use crate::controllers::todos;
 
-pub fn routes() -> Vec<kit::Route> {
-    routes![
-        // API Routes
-        get "/api/todos" => todos::index,
-        get "/api/todos/{todo}" => todos::show,
-        post "/api/todos" => todos::store,
-        put "/api/todos/{todo}" => todos::update,
-        delete "/api/todos/{todo}" => todos::destroy,
-    ]
+routes! {
+    // API Routes
+    get!("/api/todos", todos::index),
+    get!("/api/todos/{todo}", todos::show),
+    post!("/api/todos", todos::store),
+    put!("/api/todos/{todo}", todos::update),
+    delete!("/api/todos/{todo}", todos::destroy),
 }
 ```
+
+The `routes!` macro automatically generates a `register()` function that returns a configured `Router`.
 
 ## Step 4: Test the API
 
