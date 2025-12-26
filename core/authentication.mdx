@@ -39,11 +39,123 @@ if let Some(user_id) = Auth::id() {
     println!("User ID: {}", user_id);
 }
 
+// Get the currently authenticated user
+if let Some(user) = Auth::user().await? {
+    println!("User ID: {}", user.auth_identifier());
+}
+
+// Get user as concrete type (e.g., your User model)
+if let Some(user) = Auth::user_as::<User>().await? {
+    println!("Welcome, {}!", user.name);
+}
+
 // Log in a user
 Auth::login(user_id);
 
 // Log out the current user
 Auth::logout();
+```
+
+## Getting the Current User
+
+Kit provides two methods to retrieve the currently authenticated user:
+
+### Auth::user()
+
+Returns the user as a trait object (`Arc<dyn Authenticatable>`):
+
+```rust
+use kit::Auth;
+
+#[handler]
+pub async fn profile(_req: Request) -> Response {
+    if let Some(user) = Auth::user().await? {
+        println!("User ID: {}", user.auth_identifier());
+    }
+    // ...
+}
+```
+
+### Auth::user_as\<T\>()
+
+Returns the user cast to your concrete User type:
+
+```rust
+use kit::Auth;
+use crate::models::users::User;
+
+#[handler]
+pub async fn profile(_req: Request) -> Response {
+    if let Some(user) = Auth::user_as::<User>().await? {
+        // Access User model fields directly
+        println!("Welcome, {}!", user.name);
+    }
+    // ...
+}
+```
+
+## Authenticatable Trait
+
+Your User model must implement the `Authenticatable` trait to enable `Auth::user()`. This is already set up for you when you create a new Kit project:
+
+```rust
+use kit::Authenticatable;
+use std::any::Any;
+
+impl Authenticatable for Model {
+    fn auth_identifier(&self) -> i64 {
+        self.id as i64
+    }
+
+    fn auth_identifier_name(&self) -> &'static str {
+        "id"
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+```
+
+## User Provider
+
+The `UserProvider` trait tells Kit how to fetch users from your database. A default `DatabaseUserProvider` is registered in `bootstrap.rs`:
+
+```rust
+// In app/src/providers/auth_provider.rs
+use async_trait::async_trait;
+use kit::auth::{Authenticatable, UserProvider};
+use kit::FrameworkError;
+use std::sync::Arc;
+
+#[derive(Default)]
+pub struct DatabaseUserProvider;
+
+#[async_trait]
+impl UserProvider for DatabaseUserProvider {
+    async fn retrieve_by_id(
+        &self,
+        id: i64,
+    ) -> Result<Option<Arc<dyn Authenticatable>>, FrameworkError> {
+        let user = User::query()
+            .filter(Column::Id.eq(id as i32))
+            .first()
+            .await?;
+        Ok(user.map(|u| Arc::new(u) as Arc<dyn Authenticatable>))
+    }
+}
+```
+
+Register the provider in `bootstrap.rs`:
+
+```rust
+use kit::{bind, UserProvider};
+use crate::providers::DatabaseUserProvider;
+
+pub async fn register() {
+    // ...
+    bind!(dyn UserProvider, DatabaseUserProvider);
+}
 ```
 
 ## Protecting Routes
